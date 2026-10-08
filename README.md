@@ -76,6 +76,15 @@ docker compose up --build
 - Persisted uploaded pages and their `processing` state before background OCR starts, preventing transaction/state races.
 - Kept the document viewer polling OCR when a page is already processing when the viewer mounts.
 - Removed unsupported Gemini thinking configuration from rotation and page-corner detection requests.
+- Fixed Docker's backend module path and data-volume paths.
+- Docker now serves the built React frontend from the FastAPI app, while keeping the `/health` endpoint reachable.
+- Removed a credential value from `.env.example`. If the old Gemini key was real, revoke/rotate it in Google AI Studio because removing it from the latest file does not erase it from Git history.
+
+## Audit Status
+
+A source-level audit has been completed across the backend, frontend, OCR pipeline, configuration, authentication, storage, Docker setup, and repository hygiene. No remaining occurrences were found for the known branding mismatch, leaked key pattern, unsupported Gemini thinking configuration, Windows filesystem URL pattern, or invalid FastAPI background-task default.
+
+The repository still needs a real local validation pass with your installed Python/Node environments. The GitHub review environment can inspect and patch source, but it cannot execute your local OCR stack, browser, Docker daemon, or external Google/OpenAI credentials.
 
 ## Architecture
 
