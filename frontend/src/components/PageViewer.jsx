@@ -3,6 +3,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 export default function PageViewer({
   imageSrc,
   ocrResults = [],
+  visualElements = [],
   selectedResultId,
   onSelectResult,
   crop = null,
@@ -196,6 +197,65 @@ export default function PageViewer({
               />
             );
           })}
+
+        {/* Detected visual structures: arrows, brackets, tables, boxes, circles, etc. */}
+        {loaded && !drawMode && visualElements.map((element) => {
+          const x = element.bbox_x;
+          const y = element.bbox_y;
+          const w = element.bbox_w;
+          const h = element.bbox_h;
+          if (x == null || y == null || w == null || h == null) return null;
+
+          const type = (element.element_type || 'diagram').toLowerCase();
+          const label = element.label || type;
+
+          if (type === 'arrow') {
+            return (
+              <div
+                key={`visual-${element.id}`}
+                className="absolute pointer-events-none"
+                style={{
+                  left: `${x * scaleX}px`,
+                  top: `${(y + h / 2) * scaleY}px`,
+                  width: `${w * scaleX}px`,
+                  height: '2px',
+                }}
+                title={label}
+              >
+                <div className="relative w-full h-full bg-blue-500">
+                  <div className="absolute right-0 -top-1.5 w-0 h-0 border-t-2 border-b-2 border-l-4 border-t-transparent border-b-transparent border-l-blue-500" />
+                </div>
+              </div>
+            );
+          }
+
+          const borderClass =
+            type === 'circle' ? 'rounded-full border-blue-500' :
+            type === 'table' ? 'border-dashed border-indigo-500' :
+            type === 'bracket' ? 'border-dashed border-amber-500' :
+            type === 'underline' ? 'border-b-2 border-amber-500' :
+            'border-2 border-blue-400';
+
+          return (
+            <div
+              key={`visual-${element.id}`}
+              className={`absolute pointer-events-none ${borderClass}`}
+              style={{
+                left: `${x * scaleX}px`,
+                top: `${y * scaleY}px`,
+                width: `${w * scaleX}px`,
+                height: `${h * scaleY}px`,
+              }}
+              title={label}
+            >
+              {type !== 'underline' && (
+                <span className="absolute -top-5 left-0 px-1.5 py-0.5 rounded bg-white/90 border border-gray-200 text-[10px] font-medium text-gray-600 whitespace-nowrap">
+                  {label}
+                </span>
+              )}
+            </div>
+          );
+        })}
 
         {/* Drawing rectangle (dashed blue) */}
         {loaded && drawRect && (
