@@ -328,3 +328,6 @@ MIT
 ### Visual structure recognition
 
 Squinta now asks the vision OCR pipeline to detect meaningful non-text handwriting structures alongside text, including arrows, brackets, tables/grids, boxes, circles, underlines, connectors, and larger diagrams. These are stored as structured page elements and rendered separately in the document viewer, so symbols are not forced into the OCR text stream.
+\n### Visual geometry alignment
+
+Visual-element overlays now use the detected geometry rather than drawing generic CSS rectangles or horizontal arrows. Gemini is prompted to return ordered points for arrows, connectors, underlines, brackets, boxes, circles, and tables; the backend converts those points to image-pixel coordinates and conservatively refines strong straight edges/quadrilaterals with OpenCV. The frontend renders the resulting paths, skewed outlines, ellipses, and perspective-aware table grids in an SVG overlay. Legacy normalized geometry remains supported.
