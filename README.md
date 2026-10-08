@@ -32,8 +32,8 @@ A web application that converts handwritten documents to text using OCR, then le
 
 ```bash
 # Clone
-git clone https://github.com/lukeiseman/handwriting-ocr.git
-cd handwriting-ocr
+git clone https://github.com/BethalaRinosh/Squinta_x3.git
+cd Squinta_x3
 
 # Configure
 cp .env.example .env
@@ -69,6 +69,13 @@ Open http://localhost:5176 in your browser. The frontend dev server proxies API 
 docker compose up --build
 # App available at http://localhost:8000
 ```
+
+## Recent Reliability Fixes
+
+- Fixed uploaded image URLs on Windows so the UI uses `/api/uploads/...` instead of exposing a local `C:/Users/...` filesystem path.
+- Persisted uploaded pages and their `processing` state before background OCR starts, preventing transaction/state races.
+- Kept the document viewer polling OCR when a page is already processing when the viewer mounts.
+- Removed unsupported Gemini thinking configuration from rotation and page-corner detection requests.
 
 ## Architecture
 
