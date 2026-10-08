@@ -13,7 +13,7 @@ import re
 _NAME_CUE_PATTERNS = (
     re.compile(
         r"\b(?:my|our|the)\s+(?:company|business|brand|startup|organisation|organization|"
-        r"product|app|application|website|platform|team|project|channel)\s+"
+        r"product|app|application|website|platform|team|project|channel)(?:['’]s)?\s+"
         r"(?:name\s+is\s+|is\s+called\s+|is\s+named\s+|is\s+)",
         re.IGNORECASE,
     ),
