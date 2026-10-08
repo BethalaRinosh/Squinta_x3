@@ -394,3 +394,9 @@ The current build includes a focused reliability pass covering frontend search h
 - Translation uses the backend `deep-translator` integration and reports a clear error when the translation service is unavailable.
 
 ### OCR confidence scoring\n\nOCR confidence is now evidence-based instead of a fixed 90%/95% value. The displayed score combines Gemini's confidence only as a weak prior with observable transcription evidence such as output completeness, visible ink density, and explicit uncertainty markers. Scores remain normalized to 0-100% for the existing UI, but can now vary with the quality of the recognized region.\n
+
+### Strike-through detection and OCR panel layout
+
+- Strike-off detection now checks approximate word-level boxes when the OCR engine returns a whole line as one box, so hiding a crossed-out word can preserve the surrounding words.
+- The OCR Results header controls wrap on narrow panels instead of overflowing or clipping.
+- Re-process the page after pulling this update so stored OCR results include the improved word-level strike-off metadata.
