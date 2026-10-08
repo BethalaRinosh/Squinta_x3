@@ -77,6 +77,7 @@ class OcrSegment:
     text: str
     confidence: float
     bbox: tuple[int, int, int, int]  # (x, y, w, h) relative to original image
+    struck_through: bool = False
 
 
 @dataclass
@@ -148,6 +149,77 @@ def binarize(image: Image.Image) -> Image.Image:
     binary_img = binary_img.filter(ImageFilter.MaxFilter(kernel_size))
 
     return binary_img
+
+
+def detect_strike_through(
+    image: Image.Image,
+    bbox: tuple[int, int, int, int],
+) -> bool:
+    """Detect a strong horizontal stroke crossing a recognised text region.
+
+    This is intentionally conservative so normal handwriting and underlines
+    are less likely to be treated as strike-offs.
+    """
+    import cv2
+
+    x, y, w, h = bbox
+    if w < 24 or h < 10:
+        return False
+
+    pad_x = max(4, int(w * 0.03))
+    pad_y = max(3, int(h * 0.35))
+    x1 = max(0, x - pad_x)
+    y1 = max(0, y - pad_y)
+    x2 = min(image.width, x + w + pad_x)
+    y2 = min(image.height, y + h + pad_y)
+    if x2 <= x1 or y2 <= y1:
+        return False
+
+    gray = np.array(image.convert("L").crop((x1, y1, x2, y2)))
+    binary = cv2.adaptiveThreshold(
+        gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 31, 12
+    )
+
+    height, width = binary.shape
+    if width < 24 or height < 10:
+        return False
+
+    # Extract long, nearly-horizontal ink strokes.
+    kernel_w = max(17, int(width * 0.10))
+    horizontal = cv2.morphologyEx(
+        binary,
+        cv2.MORPH_OPEN,
+        cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_w, 1)),
+    )
+
+    contours, _ = cv2.findContours(horizontal, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    text_left = x - x1
+    text_right = x + w - x1
+    center_y = (y + h / 2) - y1
+
+    for contour in contours:
+        rx, ry, rw, rh = cv2.boundingRect(contour)
+        if rw < max(32, int(width * 0.45)):
+            continue
+        if rw / max(width, 1) < 0.55:
+            continue
+        if rh > max(8, int(height * 0.30)):
+            continue
+
+        cy = ry + rh / 2.0
+        if abs(cy - center_y) > max(h * 0.22, height * 0.16):
+            continue
+
+        overlap = min(rx + rw, text_right) - max(rx, text_left)
+        if overlap < w * 0.50:
+            continue
+
+        # A strike-off usually crosses the interior of the recognised text,
+        # rather than sitting clearly below it like an underline.
+        if abs(cy - center_y) <= max(h * 0.18, height * 0.10):
+            return True
+
+    return False
 
 
 def _horizontal_projection(binary_image: Image.Image) -> np.ndarray:
@@ -415,10 +487,15 @@ class OcrEngine:
             if text:  # skip empty detections
                 # Offset bbox coords by crop origin so overlays align with full image.
                 bx, by, bw, bh = bbox
+                full_bbox = (bx + crop_offset_x, by + crop_offset_y, bw, bh)
                 segments.append(OcrSegment(
                     text=text,
                     confidence=confidence,
-                    bbox=(bx + crop_offset_x, by + crop_offset_y, bw, bh),
+                    bbox=full_bbox,
+                    struck_through=detect_strike_through(
+                        preprocess_image(image_path, rotation=rotation),
+                        full_bbox,
+                    ),
                 ))
 
         return segments
@@ -1773,12 +1850,14 @@ class GeminiOcrEngine:
             # Clamp to image bounds.
             py1 = max(0, min(py1, img_height - bh))
 
+            full_bbox = (px1 + crop_offset_x, py1 + crop_offset_y, bw, bh)
             segments.append(OcrSegment(
                 text=text,
                 confidence=_calculate_gemini_confidence(
                     text, image.crop((px1, py1, min(img_width, px1 + bw), min(img_height, py1 + bh)))
                 ),
-                bbox=(px1 + crop_offset_x, py1 + crop_offset_y, bw, bh),
+                bbox=full_bbox,
+                struck_through=detect_strike_through(image, (px1, py1, bw, bh)),
             ))
 
         return segments
