@@ -336,3 +336,7 @@ Visual-element overlays now use the detected geometry rather than drawing generi
 ### OCR visual modes
 
 OCR now defaults to a fast mode that focuses on handwritten text, text positions, and arrows. The Document View includes a **Detailed visuals** toggle. Turn it on before processing when you need tables, boxes, circles, brackets, underlines, connectors, and diagrams. The setting is remembered in the browser, while new uploads default to the faster mode.
+
+
+### Position-aware formatted OCR
+The document OCR panel now includes a **Formatted** view that reconstructs line breaks, horizontal spacing, indentation, and rough column structure from each OCR result's bounding-box position. The original result list remains available under **Results**. This is a layout reconstruction layer, not a claim of exact table/diagram recovery.
