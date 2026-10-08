@@ -124,6 +124,7 @@ class OcrResult(Base):
         String(50), nullable=False, default="MAIN_INK", server_default="MAIN_INK"
     )
     ink_metadata: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    struck_through: Mapped[bool] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
