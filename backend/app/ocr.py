@@ -1371,13 +1371,148 @@ class GeminiOcrEngine:
 
         img_width, img_height = image.size
 
-        # ── Step 1: Get text from Gemini ─────────────────────────────
+        # Long handwritten pages can exceed a single JSON response budget.
+        # Tile tall pages with overlap so every section gets its own output budget.
+        recognition_image = prepare_ocr_image(image)
+        recognition_width, recognition_height = recognition_image.size
+        tile_height = 1000
+        overlap = 140
+        ranges = [(0, recognition_height)]
+        if recognition_height > 1150:
+            ranges = []
+            y0 = 0
+            while y0 < recognition_height:
+                y1 = min(recognition_height, y0 + tile_height)
+                ranges.append((y0, y1))
+                if y1 >= recognition_height:
+                    break
+                y0 = y1 - overlap
+
+        all_entries: list[dict] = []
+        all_visuals: list[VisualElement] = []
+
         try:
-            raw_text = self._call(
-                GEMINI_DETAILED_OCR_PROMPT if visual_mode else GEMINI_FAST_OCR_PROMPT,
-                image,
-                temperature=0.0,
+            import json as _json
+            for y0, y1 in ranges:
+                tile = recognition_image.crop((0, y0, recognition_width, y1))
+                raw_text = self._call(
+                    GEMINI_DETAILED_OCR_PROMPT if visual_mode else GEMINI_FAST_OCR_PROMPT,
+                    tile,
+                    max_tokens=4096,
+                    temperature=0.0,
+                )
+                if not raw_text or raw_text.strip() == "[]":
+                    continue
+                tile_entries = self._parse_gemini_json(raw_text)
+                if not tile_entries:
+                    continue
+
+                tw, th = tile.size
+                for entry in tile_entries:
+                    if not isinstance(entry, dict):
+                        continue
+                    box = entry.get("box") or entry.get("box_2d")
+                    if not isinstance(box, list) or len(box) != 4:
+                        continue
+                    try:
+                        by1, bx1, by2, bx2 = [float(v) for v in box]
+                    except (TypeError, ValueError):
+                        continue
+
+                    full_box = [
+                        ((y0 + by1 / 1000.0 * th) / recognition_height) * 1000.0,
+                        (bx1 / 1000.0) * 1000.0,
+                        ((y0 + by2 / 1000.0 * th) / recognition_height) * 1000.0,
+                        (bx2 / 1000.0) * 1000.0,
+                    ]
+
+                    item_type = str(entry.get("type") or "text").strip().lower()
+                    if item_type == "visual":
+                        element_type = str(entry.get("element_type") or "diagram").lower()
+                        vx1 = max(0, int(bx1 / 1000.0 * tw))
+                        vy1 = max(0, int(by1 / 1000.0 * th))
+                        vx2 = min(tw, int(bx2 / 1000.0 * tw))
+                        vy2 = min(th, int(by2 / 1000.0 * th))
+                        vb = (vx1, vy1, max(1, vx2-vx1), max(1, vy2-vy1))
+                        geom = self._refine_visual_geometry(tile, element_type, vb, entry.get("geometry"))
+                        if isinstance(geom, dict):
+                            pts = geom.get("points")
+                            if isinstance(pts, list):
+                                geom["points"] = [[
+                                    round(float(p[0])),
+                                    round(float(p[1]) + y0),
+                                ] for p in pts if isinstance(p, list) and len(p) >= 2]
+                            geom["coordinate_space"] = "recognition"
+                        px1 = round(full_box[1] / 1000.0 * img_width)
+                        py1 = round(full_box[0] / 1000.0 * img_height)
+                        px2 = round(full_box[3] / 1000.0 * img_width)
+                        py2 = round(full_box[2] / 1000.0 * img_height)
+                        all_visuals.append(VisualElement(
+                            element_type=element_type,
+                            confidence=max(0.0, min(1.0, float(entry.get("confidence", 0.9)))),
+                            bbox=(px1, py1, max(1, px2-px1), max(1, py2-py1)),
+                            label=entry.get("label"),
+                            geometry=_json.dumps(geom, ensure_ascii=False),
+                        ))
+                    else:
+                        text_value = (entry.get("text") or entry.get("text_content") or "").strip()
+                        if text_value:
+                            all_entries.append({"text": text_value, "box": full_box})
+
+        except Exception:
+            logger.exception("Gemini OCR failed for %s", image_path)
+            return GeminiOcrResult(rotation=0, segments=[], visual_elements=[])
+
+        # Remove only overlap duplicates, never discard otherwise distinct lines.
+        all_entries.sort(key=lambda e: float((e.get("box") or [0])[0]))
+        deduped: list[dict] = []
+        for entry in all_entries:
+            text_value = entry["text"]
+            box = entry["box"]
+            cy = (float(box[0]) + float(box[2])) / 2.0
+            duplicate = False
+            for prev in reversed(deduped[-8:]):
+                pbox = prev["box"]
+                pcy = (float(pbox[0]) + float(pbox[2])) / 2.0
+                if abs(cy-pcy) < 30.0 and _text_overlap(text_value, prev["text"]) >= 0.75:
+                    duplicate = True
+                    break
+            if not duplicate:
+                deduped.append(entry)
+
+        if not deduped:
+            return GeminiOcrResult(rotation=0, segments=[], visual_elements=[])
+
+        text_lines = [e["text"] for e in deduped]
+        segments = self._build_direct_segments(
+            text_lines, deduped, recognition_image,
+            recognition_width, recognition_height, 0, 0,
+        )
+
+        # The model image and stored image have the same aspect ratio. Map boxes
+        # back to the stored frame without ever stretching the source image.
+        sx = img_width / float(recognition_width)
+        sy = img_height / float(recognition_height)
+        segments = [
+            OcrSegment(
+                text=s.text,
+                confidence=s.confidence,
+                bbox=(
+                    round(s.bbox[0]*sx) + crop_offset_x,
+                    round(s.bbox[1]*sy) + crop_offset_y,
+                    max(1, round(s.bbox[2]*sx)),
+                    max(1, round(s.bbox[3]*sy)),
+                ),
             )
+            for s in segments
+        ]
+
+        logger.info(
+            "Gemini OCR: %d lines -> %d segments, %d visuals",
+            len(text_lines), len(segments), len(all_visuals),
+        )
+        return GeminiOcrResult(rotation=0, segments=segments, visual_elements=all_visuals)
+
             logger.info(
                 "Gemini OCR raw response (%d chars): %.300s",
                 len(raw_text), raw_text,
