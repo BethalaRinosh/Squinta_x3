@@ -18,7 +18,7 @@ A web application that converts handwritten documents to text using OCR, then le
 - **Google Photos Import** -- Import photos directly via the Google Photos Picker API
 - **Full-text Search** -- Whoosh-indexed search across all your transcribed documents
 - **Text-to-Speech** -- Select OCR text and read it aloud, or read individual results, using the browser's built-in speech synthesis
-- **AI Summary** -- Generate a concise Gemini summary of the current page's OCR text without sending the image through another vision pass
+- **AI Summary** -- Generate a concise Gemini summary of the current page's OCR text without sending the image through another vision pass, with one-click read-aloud playback using the existing browser speech synthesis
 - **Model Export** -- Download your personalized LoRA weights
 - **Domain Context Engine** -- Detects likely medical, legal, finance, science, or education context from OCR candidates and runs a constrained Gemini verification pass using domain terminology, without inventing unsupported text.
 
@@ -88,6 +88,8 @@ docker compose up --build
 The context engine runs after the first Gemini handwriting pass. It detects a likely domain from the candidate transcription, injects a compact terminology/context profile, and asks Gemini to verify ambiguous readings against the original image. The context layer is advisory only: it cannot create text that is not visually supported. Medical context includes common clinical terms, drugs, measurements, abbreviations, and units. The engine also has legal, finance, science, and education profiles and can be extended with larger ontologies such as UMLS/MeSH/RxNorm through `backend/app/context_engine.py`.
 
 Set `ENABLE_CONTEXT_ENGINE=false` to disable the second-pass refinement.
+
+- **Summary speech playback** -- AI summaries can now be read aloud directly from the summary card, with the existing speech-rate controls and stop/play behavior shared by OCR text-to-speech.
 
 ### Gemini OCR reliability
 
