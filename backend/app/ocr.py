@@ -377,27 +377,6 @@ class OcrEngine:
         _, confidence = self.process_single(image)
         return confidence
 
-    def refine_with_context(self, image: Image.Image, candidate: str) -> tuple[str, dict]:
-        """Run a constrained second vision pass using detected domain context."""
-        if not settings.ENABLE_CONTEXT_ENGINE:
-            return candidate.strip(), {"domain": "general", "confidence": 0.0, "vocabulary": []}
-        context = build_context(candidate)
-        if context.get("domain") == "general" or context.get("confidence", 0.0) < 0.55:
-            return candidate.strip(), context
-
-        prompt = GEMINI_CONTEXT_CORRECTION_PROMPT.format(
-            candidate=candidate.strip(),
-            context=build_context_prompt(candidate, context),
-        )
-        try:
-            refined = self._call(prompt, image, max_tokens=4096, temperature=0.0)
-            # Context refinement must never turn a valid candidate into an empty result.
-            if refined and refined.strip() and refined.strip().upper() != "EMPTY":
-                return refined.strip(), context
-        except Exception:
-            logger.exception("Gemini context refinement failed")
-        return candidate.strip(), context
-
     def process_page(
         self,
         image_path: str | Path,
@@ -931,6 +910,26 @@ class GeminiOcrEngine:
                 if attempt < 1:
                     _time.sleep(1)
         raise last_exc
+
+    def refine_with_context(self, image: Image.Image, candidate: str) -> tuple[str, dict]:
+        """Run a constrained second vision pass using detected domain context."""
+        if not settings.ENABLE_CONTEXT_ENGINE:
+            return candidate.strip(), {"domain": "general", "confidence": 0.0, "vocabulary": []}
+        context = build_context(candidate)
+        if context.get("domain") == "general" or context.get("confidence", 0.0) < 0.55:
+            return candidate.strip(), context
+
+        prompt = GEMINI_CONTEXT_CORRECTION_PROMPT.format(
+            candidate=candidate.strip(),
+            context=build_context_prompt(candidate, context),
+        )
+        try:
+            refined = self._call(prompt, image, max_tokens=4096, temperature=0.0)
+            if refined and refined.strip() and refined.strip().upper() != "EMPTY":
+                return refined.strip(), context
+        except Exception:
+            logger.exception("Gemini context refinement failed")
+        return candidate.strip(), context
 
     def detect_rotation(self, image: Image.Image) -> int:
         """Ask Gemini what rotation is needed to make text upright.
