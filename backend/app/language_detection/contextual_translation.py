@@ -18,6 +18,11 @@ _NAME_CUE_PATTERNS = (
         re.IGNORECASE,
     ),
     re.compile(
+        r"\b(?:my|our|the)\s+(?:company|business|brand|startup|organisation|organization|"
+        r"product|app|application|website|platform|team|project|channel)['’]s\s+name\s+is\s+",
+        re.IGNORECASE,
+    ),
+    re.compile(
         r"\b(?:my\s+)?(?:company|business|brand|startup|organisation|organization|"
         r"product|app|application|website|platform|team|project|channel)\s+name\s+is\s+",
         re.IGNORECASE,
