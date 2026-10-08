@@ -454,7 +454,7 @@ async def _run_ocr_on_page(page_id: int, user_id: int) -> None:
                         confidence=element.confidence,
                         label=element.label,
                         geometry=element.geometry,
-                        metadata=element.metadata,
+                        element_metadata=element.metadata,
                     )
                 )
 
