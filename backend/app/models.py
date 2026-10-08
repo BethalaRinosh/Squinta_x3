@@ -76,6 +76,9 @@ class Page(Base):
     ocr_results: Mapped[List["OcrResult"]] = relationship(
         back_populates="page", cascade="all, delete-orphan"
     )
+    visual_elements: Mapped[List["VisualElement"]] = relationship(
+        back_populates="page", cascade="all, delete-orphan"
+    )
 
 
 class OcrResult(Base):
