@@ -299,6 +299,31 @@ export default function DocumentView() {
     window.speechSynthesis.speak(utterance);
   }, [speakingResultId, speechRate, stopSpeaking, toast]);
 
+  const speakSummary = useCallback(() => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      toast.error('Text-to-speech is not supported in this browser.');
+      return;
+    }
+
+    const text = String(aiSummary || '').trim();
+    if (!text) return;
+
+    if (speakingResultId === '__summary__') {
+      stopSpeaking();
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = speechRate;
+    utterance.pitch = 1;
+    utterance.onend = () => setSpeakingResultId(null);
+    utterance.onerror = () => setSpeakingResultId(null);
+
+    setSpeakingResultId('__summary__');
+    window.speechSynthesis.speak(utterance);
+  }, [aiSummary, speechRate, speakingResultId, stopSpeaking, toast]);
+
   const speakSelection = useCallback(() => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       toast.error('Text-to-speech is not supported in this browser.');
@@ -722,16 +747,46 @@ export default function DocumentView() {
                   </div>
                   {aiSummary && (
                     <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
-                      <div className="mb-2 flex items-center justify-between">
+                      <div className="mb-2 flex items-center justify-between gap-2">
                         <span className="text-xs font-semibold text-gray-700">AI Summary</span>
-                        <button
-                          type="button"
-                          onClick={() => setAiSummary('')}
-                          className="text-[11px] text-gray-400 hover:text-gray-600"
-                          aria-label="Dismiss AI summary"
-                        >
-                          Close
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={speakSummary}
+                            className={"inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors " + (
+                              speakingResultId === '__summary__'
+                                ? "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                                : "bg-primary-50 text-primary-700 hover:bg-primary-100"
+                            )}
+                            aria-label={speakingResultId === '__summary__' ? "Stop reading summary" : "Read summary aloud"}
+                            title={speakingResultId === '__summary__' ? "Stop reading summary" : "Read summary aloud"}
+                          >
+                            {speakingResultId === '__summary__' ? (
+                              <>
+                                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M6 6h12v12H6z" />
+                                </svg>
+                                Stop
+                              </>
+                            ) : (
+                              <>
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5L6 9H3v6h3l5 4V5z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.5 8.5a5 5 0 010 7M18.5 6a8 8 0 010 12" />
+                                </svg>
+                                Read aloud
+                              </>
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAiSummary('')}
+                            className="text-[11px] text-gray-400 hover:text-gray-600"
+                            aria-label="Dismiss AI summary"
+                          >
+                            Close
+                          </button>
+                        </div>
                       </div>
                       <div className="whitespace-pre-line text-sm leading-6 text-gray-700">
                         {aiSummary}
