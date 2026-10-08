@@ -9,6 +9,7 @@ import {
 import { useToast } from '../hooks/useToast';
 import PageViewer from '../components/PageViewer';
 import OcrResultList from '../components/OcrResultList';
+import StructuredOcrView from '../components/StructuredOcrView';
 
 export default function DocumentView() {
   const { id } = useParams();
@@ -21,6 +22,7 @@ export default function DocumentView() {
   const [cropMode, setCropMode] = useState(false);
   const [trainMode, setTrainMode] = useState(false);
   const [trainIndex, setTrainIndex] = useState(0);
+  const [resultView, setResultView] = useState('formatted');
   const [visualMode, setVisualMode] = useState(() => (
     localStorage.getItem('squinta.visualMode') === 'true'
   ));
@@ -573,16 +575,34 @@ export default function DocumentView() {
         {/* OCR results panel */}
         <div className="lg:col-span-4">
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden sticky top-20">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-              <h2 className="text-sm font-semibold text-gray-700">OCR Results</h2>
-              {currentPageId && (
-                <button
-                  onClick={() => processPageMutation.mutate()}
-                  disabled={processPageMutation.isPending}
-                  className="text-xs text-primary-600 hover:text-primary-700 font-medium disabled:opacity-50"
-                >
-                  {processPageMutation.isPending ? 'Processing...' : 'Re-process'}
-                </button>
+            <div className="px-4 py-3 border-b border-gray-100">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-gray-700">OCR Results</h2>
+                {currentPageId && (
+                  <button
+                    onClick={() => processPageMutation.mutate()}
+                    disabled={processPageMutation.isPending}
+                    className="text-xs text-primary-600 hover:text-primary-700 font-medium disabled:opacity-50"
+                  >
+                    {processPageMutation.isPending ? 'Processing...' : 'Re-process'}
+                  </button>
+                )}
+              </div>
+              {results.length > 0 && (
+                <div className="mt-3 flex rounded-lg bg-gray-100 p-0.5">
+                  <button
+                    onClick={() => setResultView('formatted')}
+                    className={\`flex-1 rounded-md px-2 py-1 text-xs font-medium transition-colors \${resultView === 'formatted' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}\`}
+                  >
+                    Formatted
+                  </button>
+                  <button
+                    onClick={() => setResultView('list')}
+                    className={\`flex-1 rounded-md px-2 py-1 text-xs font-medium transition-colors \${resultView === 'list' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}\`}
+                  >
+                    Results
+                  </button>
+                </div>
               )}
             </div>
 
@@ -597,12 +617,21 @@ export default function DocumentView() {
                   ))}
                 </div>
               ) : results.length > 0 ? (
-                <OcrResultList
-                  results={results}
-                  selectedResultId={selectedResultId}
-                  onSelectResult={setSelectedResultId}
-                  onCorrect={handleCorrect}
-                />
+                resultView === 'formatted' ? (
+                  <StructuredOcrView
+                    results={results}
+                    visualElements={currentPage?.visual_elements || []}
+                    onSelectResult={setSelectedResultId}
+                    selectedResultId={selectedResultId}
+                  />
+                ) : (
+                  <OcrResultList
+                    results={results}
+                    selectedResultId={selectedResultId}
+                    onSelectResult={setSelectedResultId}
+                    onCorrect={handleCorrect}
+                  />
+                )
               ) : (
                 <div className="p-6 text-center">
                   <svg className="w-10 h-10 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
