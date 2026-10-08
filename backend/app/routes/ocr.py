@@ -729,22 +729,20 @@ async def processing_status(
     result = await db.execute(stmt)
     rows = result.all()
 
-    items = []
-    for page, doc_id, doc_name in rows:
-        items.append(ProcessingStatusItem(
+    items = [
+        ProcessingStatusItem(
             page_id=page.id,
             document_id=doc_id,
             document_name=doc_name,
             status=page.processing_status or "idle",
-        ))
+        )
+        for page, doc_id, doc_name in rows
+    ]
 
-        # Auto-clear "done" and "error" statuses after they've been read.
-        if page.processing_status in ("done", "error"):
-            page.processing_status = "idle"
-
-    if any(p.processing_status == "idle" for p, _, _ in rows):
-        await db.flush()
-
+    # Do not mutate terminal state while reporting it. The old read-to-clear
+    # behavior meant two tabs could race: one tab consumed `done`/`error`, the
+    # other saw nothing and kept polling. Terminal states are now cleared only
+    # when a fresh OCR request explicitly starts that page again.
     return ProcessingStatusResponse(pages=items)
 
 
