@@ -7,9 +7,8 @@ from __future__ import annotations
 
 import re
 
-# Match cues like "My company's name is FISH", "our brand is Orange", or
-# "The product is called Nothing". Stop at punctuation to avoid absorbing the
-# remainder of a sentence into the name.
+# Cues such as "My company's name is FISH", "our brand is Orange", and
+# "The product is called Nothing".
 _NAME_CUE_PATTERNS = (
     re.compile(
         r"\b(?:my|our|the)\s+(?:company|business|brand|startup|organisation|organization|"
@@ -53,8 +52,6 @@ def find_protected_names(text: str) -> list[str]:
             stop = _STOP.search(remainder)
             raw = remainder[:stop.start()] if stop else remainder
             name = raw.strip().rstrip(".").strip()
-            # Remove conversational filler after the name when it is clearly a
-            # new clause. Keep multi-word names, including names with lowercase words.
             if name:
                 end = start + len(raw.rstrip(_TRAILING_PUNCTUATION + "."))
                 candidates.append((start, end, name))
