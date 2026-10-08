@@ -37,6 +37,9 @@ class Settings(BaseSettings):
 
     # Gemini API (for high-quality OCR via multimodal LLM)
     GEMINI_API_KEY: str = ""
+    # Gemini model used by the OCR pipeline. Keep this configurable because
+    # model availability can change independently of the application code.
+    GEMINI_MODEL: str = "gemini-3.5-flash-lite"
 
     # Optional OpenAI OCR provider (Responses API; useful for handwritten text).
     OPENAI_API_KEY: str = ""
