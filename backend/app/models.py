@@ -81,6 +81,27 @@ class Page(Base):
     )
 
 
+class VisualElement(Base):
+    __tablename__ = "visual_elements"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    page_id: Mapped[int] = mapped_column(Integer, ForeignKey("pages.id"), nullable=False, index=True)
+    element_type: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    bbox_x: Mapped[int] = mapped_column(Integer, nullable=False)
+    bbox_y: Mapped[int] = mapped_column(Integer, nullable=False)
+    bbox_w: Mapped[int] = mapped_column(Integer, nullable=False)
+    bbox_h: Mapped[int] = mapped_column(Integer, nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    label: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    geometry: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    metadata: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    page: Mapped["Page"] = relationship(back_populates="visual_elements")
+
+
 class OcrResult(Base):
     __tablename__ = "ocr_results"
 
