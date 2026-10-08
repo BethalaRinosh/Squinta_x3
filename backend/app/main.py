@@ -118,7 +118,8 @@ from app.routes.search import router as search_router  # noqa: E402
 
 app.include_router(auth_router)
 app.include_router(documents_router)
-app.include_router(ocr_router)\napp.include_router(summary_router)
+app.include_router(ocr_router)
+app.include_router(summary_router)
 app.include_router(corrections_router)
 app.include_router(search_router)
 app.include_router(photos_router)
