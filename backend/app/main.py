@@ -129,6 +129,20 @@ app.include_router(model_router)
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
+# ── Health check ──────────────────────────────────────────────────────────────
+
+
+@app.get("/health", tags=["health"])
+async def health_check() -> dict:
+    return {"status": "ok"}
+
+# ── Health check ──────────────────────────────────────────────────────────────
+
+
+@app.get("/health", tags=["health"])
+async def health_check() -> dict:
+    return {"status": "ok"}
+
 # In the production Docker image, the built React app lives outside the
 # backend package. Serve it from FastAPI so Docker exposes a single app URL.
 FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
@@ -140,11 +154,3 @@ if FRONTEND_DIST.exists():
         if requested.is_file() and FRONTEND_DIST in requested.parents:
             return FileResponse(requested)
         return FileResponse(FRONTEND_DIST / "index.html")
-
-
-# ── Health check ──────────────────────────────────────────────────────────────
-
-
-@app.get("/health", tags=["health"])
-async def health_check() -> dict:
-    return {"status": "ok"}
