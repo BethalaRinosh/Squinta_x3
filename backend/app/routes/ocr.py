@@ -38,8 +38,12 @@ def _can_start_ocr(status: str | None) -> bool:
 # This function will be replaced once the model pipeline is ready.
 
 
-async def _run_ocr_on_page(page_id: int, user_id: int) -> None:
+async def _run_ocr_on_page(page_id: int, user_id: int, visual_mode: bool = False) -> None:
     """Run OCR inference on a single page and persist results.
+
+    Fast mode detects text, text positions, and arrows only. Detailed visual
+    mode additionally detects tables, boxes, circles, brackets, underlines,
+    connectors, and diagrams.
 
     Uses Gemini Flash API when available (much better quality on camera photos).
     Falls back to TrOCR pipeline when no Gemini API key is configured.
@@ -205,10 +209,10 @@ async def _run_ocr_on_page(page_id: int, user_id: int) -> None:
                 # oriented (either originally or after baking above).
                 gemini_result = await asyncio.to_thread(
                     gemini.process_page,
-                    page.image_path, 0,
+                    page.image_path, 0, visual_mode=visual_mode,
                 )
                 segments = gemini_result.segments
-                visual_elements = gemini_result.visual_elements
+                visual_elements = gemini_result.visual_elements if visual_mode else [v for v in gemini_result.visual_elements if v.element_type == "arrow"]
 
             if segments is None:
                 if not should_try_trocr_fallback():
@@ -501,6 +505,10 @@ async def _verify_document_ownership(
     return doc
 
 
+class OcrProcessRequest(BaseModel):
+    visual_mode: bool = False
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 
@@ -508,6 +516,7 @@ async def _verify_document_ownership(
 async def process_page(
     page_id: int,
     background_tasks: BackgroundTasks,
+    body: OcrProcessRequest | None = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> MessageResponse:
@@ -525,6 +534,10 @@ async def process_page(
     old_results = await db.execute(old_results_stmt)
     for old in old_results.scalars():
         await db.delete(old)
+    old_visual_stmt = select(VisualElement).where(VisualElement.page_id == page.id)
+    old_visuals = await db.execute(old_visual_stmt)
+    for old in old_visuals.scalars():
+        await db.delete(old)
 
     page.processing_status = "processing"
     await db.flush()
@@ -532,7 +545,12 @@ async def process_page(
     # Persist the processing marker before scheduling the task so the
     # background worker cannot be started twice by overlapping requests.
     await db.commit()
-    background_tasks.add_task(_run_ocr_on_page, page.id, current_user.id)
+    background_tasks.add_task(
+        _run_ocr_on_page,
+        page.id,
+        current_user.id,
+        bool(body.visual_mode) if body else False,
+    )
     return MessageResponse(message=f"OCR processing started for page {page.id}")
 
 
@@ -664,6 +682,7 @@ async def process_bbox(
 async def process_document(
     document_id: int,
     background_tasks: BackgroundTasks,
+    body: OcrProcessRequest | None = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> MessageResponse:
@@ -685,9 +704,18 @@ async def process_document(
         old_results = await db.execute(old_stmt)
         for old in old_results.scalars():
             await db.delete(old)
+        old_visual_stmt = select(VisualElement).where(VisualElement.page_id == page.id)
+        old_visuals = await db.execute(old_visual_stmt)
+        for old in old_visuals.scalars():
+            await db.delete(old)
 
         page.processing_status = "processing"
-        background_tasks.add_task(_run_ocr_on_page, page.id, current_user.id)
+        background_tasks.add_task(
+            _run_ocr_on_page,
+            page.id,
+            current_user.id,
+            bool(body.visual_mode) if body else False,
+        )
 
     # Persist processing markers before the background tasks start. Without
     # this commit, a second request can observe the old state and enqueue duplicates.
