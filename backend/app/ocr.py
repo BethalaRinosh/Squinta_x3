@@ -381,6 +381,7 @@ class OcrEngine:
         image_path: str | Path,
         rotation: int = 0,
         crop: dict | None = None,
+        visual_mode: bool = False,
     ) -> list[OcrSegment]:
         """Full pipeline: load image, segment into lines, run OCR.
 
@@ -493,7 +494,60 @@ What clockwise rotation in degrees (0, 90, 180, or 270) would make the text read
 
 Reply with ONLY a single number: 0, 90, 180, or 270"""
 
-GEMINI_OCR_PROMPT = """Analyze this handwritten page as both an OCR system and a document-layout understanding system.
+GEMINI_FAST_OCR_PROMPT = """Analyze this handwritten page for OCR.
+
+Return EVERY handwritten text line and every meaningful hand-drawn arrow.
+
+For text:
+{"type":"text","text":"...","box":[y1,x1,y2,x2],"confidence":0.0}
+
+For arrows:
+{"type":"visual","element_type":"arrow","label":"optional description","box":[y1,x1,y2,x2],"geometry":{"points":[[x,y],...]}}
+
+Use arrow for ->, =>, curved arrows, or arrows connecting concepts. Only return arrows that are actually visible. Do not invent arrows from text or layout.
+
+Coordinates are normalized 0-1000. For geometry.points use [x,y] pairs in that same normalized coordinate system. For arrows, provide an ordered polyline from tail to arrow tip and preserve the actual direction and bends.
+
+Output ONLY a JSON array. If there is no content, return []."""
+
+GEMINI_DETAILED_OCR_PROMPT = """Analyze this handwritten page as both an OCR system and a document-layout understanding system.
+
+Return EVERY handwritten text line AND every meaningful non-text visual structure.
+
+For text:
+{"type":"text","text":"...","box":[y1,x1,y2,x2],"confidence":0.0}
+
+For visual structures:
+{"type":"visual","element_type":"arrow|bracket|table|box|circle|underline|connector|diagram","label":"optional description","box":[y1,x1,y2,x2],"geometry":{"points":[[x,y],...],"direction":"optional","rows":0,"columns":0}}
+
+Use arrow for hand-drawn arrows such as ->, =>, curved arrows, or arrows connecting concepts.
+Use bracket for (), [], {}, or large hand-drawn brackets that structure content.
+Use table for visible tables or rough hand-drawn grids.
+Use box for hand-drawn rectangles around text.
+Use circle for circled words or numbers.
+Use underline for meaningful underlines.
+Use connector for lines connecting two regions when they are not arrows.
+Use diagram for larger visual structures containing multiple connected shapes/elements.
+
+Only return structures that are actually visible. Do NOT invent structures from text alone.
+A visual element may overlap text.
+
+Coordinates are normalized 0-1000. For geometry.points use [x,y] pairs in the same normalized coordinate system.
+
+GEOMETRY IS CRITICAL. The frontend will draw the detected structure from geometry, not from the axis-aligned box:
+- arrow: provide an ordered polyline from tail to arrow tip; include at least 2 points and preserve the actual direction and bends.
+- connector: provide an ordered polyline along the visible connector.
+- underline: provide the actual two endpoints of the underline.
+- bracket: provide an ordered polyline following the visible bracket.
+- box: provide the visible outline corners as 4 ordered points, even if the box is slightly skewed or hand-drawn.
+- circle: provide 4 or more points around the visible outline, plus a center/radius when possible.
+- table: provide the outer outline points and accurate rows/columns.
+- diagram: provide meaningful visible connector/outline points when possible.
+Never replace a diagonal/curved structure with a horizontal line. Never force a hand-drawn outline into a perfect rectangle when its corners are visibly skewed.
+
+Output ONLY a JSON array. If there is no content, return [].""";
+
+GEMINI_DETAILED_OCR_PROMPT = """Analyze this handwritten page as both an OCR system and a document-layout understanding system.
 
 Return EVERY handwritten text line AND every meaningful non-text visual structure.
 
@@ -1302,7 +1356,11 @@ class GeminiOcrEngine:
 
         # ── Step 1: Get text from Gemini ─────────────────────────────
         try:
-            raw_text = self._call(GEMINI_OCR_PROMPT, image, temperature=0.0)
+            raw_text = self._call(
+                GEMINI_DETAILED_OCR_PROMPT if visual_mode else GEMINI_FAST_OCR_PROMPT,
+                image,
+                temperature=0.0,
+            )
             logger.info(
                 "Gemini OCR raw response (%d chars): %.300s",
                 len(raw_text), raw_text,
