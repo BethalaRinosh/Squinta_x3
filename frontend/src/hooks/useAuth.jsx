@@ -56,6 +56,8 @@ export function AuthProvider({ children }) {
           try {
             const currentUser = await getMe();
             if (!cancelled) setUser(normalizeUser(currentUser));
+            // Release the loading screen for restored Google and guest tokens.
+            if (!cancelled) setLoading(false);
             return;
           } catch {
             // Expired/invalid tokens fall back to this browser's guest session.
