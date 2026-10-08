@@ -6,6 +6,7 @@ from app.language_detection.detector import (
     detect_language,
     detect_language_spans,
     identify_language_and_translate_to_english,
+    translate_text,
     translate_text_to_english,
 )
 from app.language_detection.models import (
@@ -26,5 +27,6 @@ __all__ = [
     "detect_language_spans",
     "get_language",
     "identify_language_and_translate_to_english",
+    "translate_text",
     "translate_text_to_english",
 ]
