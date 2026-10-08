@@ -19,6 +19,7 @@ A web application that converts handwritten documents to text using OCR, then le
 - **Full-text Search** -- Whoosh-indexed search across all your transcribed documents
 - **Text-to-Speech** -- Select OCR text and read it aloud, or read individual results, using the browser's built-in speech synthesis
 - **AI Summary** -- Generate a concise Gemini summary of the current page's OCR text without sending the image through another vision pass, with one-click read-aloud playback using the existing browser speech synthesis
+- **Strike-off detection** -- Detects text crossed out by a strong horizontal stroke. In Document View, **Remove strike-offs** hides detected struck-through text; when disabled, it remains visible with a strike-through.
 - **Model Export** -- Download your personalized LoRA weights
 - **Domain Context Engine** -- Detects likely medical, legal, finance, science, or education context from OCR candidates and runs a constrained Gemini verification pass using domain terminology, without inventing unsupported text.
 
