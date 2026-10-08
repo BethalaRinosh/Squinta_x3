@@ -382,3 +382,7 @@ Gemini OCR bounding boxes are therefore generated against the same pixel space t
 After OCR finishes, the Document View shows an **AI Summary** button in the OCR Results panel. It sends the recognized page text to the same configured Gemini model used by Squinta and returns a concise summary. The image is not sent again for this feature, so it uses a regular text-generation request rather than another vision OCR pass.
 
 The feature uses the existing `GEMINI_API_KEY` and `GEMINI_MODEL` settings. No additional API key or dependency is required.
+
+## Stability pass
+
+The current build includes a focused reliability pass covering frontend search highlighting, Google Photos background OCR transaction ordering, and OCR processing-status polling. Existing OCR, translation, summaries, speech playback, correction, training, and visual-structure features are preserved.
