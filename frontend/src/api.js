@@ -92,13 +92,17 @@ export async function rotatePage(pageId, rotation) {
 
 // ---- OCR ----
 
-export async function processPage(pageId) {
-  const { data } = await api.post(`/ocr/process/${pageId}`);
+export async function processPage(pageId, visualMode = false) {
+  const { data } = await api.post(`/ocr/process/${pageId}`, {
+    visual_mode: visualMode,
+  });
   return data;
 }
 
-export async function processDocument(docId) {
-  const { data } = await api.post(`/ocr/process-document/${docId}`);
+export async function processDocument(docId, visualMode = false) {
+  const { data } = await api.post(`/ocr/process-document/${docId}`, {
+    visual_mode: visualMode,
+  });
   return data;
 }
 
