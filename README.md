@@ -386,4 +386,10 @@ The feature uses the existing `GEMINI_API_KEY` and `GEMINI_MODEL` settings. No a
 ## Stability pass
 
 The current build includes a focused reliability pass covering frontend search highlighting, Google Photos background OCR transaction ordering, and OCR processing-status polling. Existing OCR, translation, summaries, speech playback, correction, training, and visual-structure features are preserved.
-\n\n### OCR confidence scoring\n\nOCR confidence is now evidence-based instead of a fixed 90%/95% value. The displayed score combines Gemini's confidence only as a weak prior with observable transcription evidence such as output completeness, visible ink density, and explicit uncertainty markers. Scores remain normalized to 0-100% for the existing UI, but can now vary with the quality of the recognized region.\n
+\n\n### Multilingual translation controls
+
+- OCR preserves the recognized source-language text instead of silently replacing it with English. For non-English OCR results, the Results view shows a **Translate** control with a target-language selector.
+- AI summaries are generated in the detected source language, and the summary card provides its own **Translate** control when the source language is not English.
+- Translation uses the backend `deep-translator` integration and reports a clear error when the translation service is unavailable.
+
+### OCR confidence scoring\n\nOCR confidence is now evidence-based instead of a fixed 90%/95% value. The displayed score combines Gemini's confidence only as a weak prior with observable transcription evidence such as output completeness, visible ink density, and explicit uncertainty markers. Scores remain normalized to 0-100% for the existing UI, but can now vary with the quality of the recognized region.\n
