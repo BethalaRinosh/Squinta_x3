@@ -2034,38 +2034,42 @@ class GeminiOcrEngine:
 
     @staticmethod
     def _parse_gemini_json(raw_text: str) -> list | None:
-        """Parse Gemini JSON response, stripping markdown fences. Returns None on failure."""
+        """Parse Gemini structured output without silently discarding valid OCR."""
         import json as _json
         import re
 
         json_str = raw_text.strip()
         if json_str.startswith("```"):
             lines = json_str.split("\n")
-            lines = [l for l in lines if not l.strip().startswith("```")]
+            lines = [line for line in lines if not line.strip().startswith("```")]
             json_str = "\n".join(lines)
 
+        entries = None
         try:
             entries = _json.loads(json_str)
         except _json.JSONDecodeError:
-            # Try to extract a JSON array from the response (Gemini sometimes
-            # wraps it in extra text or has trailing commas).
+            # Gemini can wrap a valid array in prose or emit a trailing comma.
             match = re.search(r'\[.*\]', json_str, re.DOTALL)
             if match:
                 try:
-                    # Remove trailing commas before ] which is invalid JSON
                     cleaned = re.sub(r',\s*([}\]])', r'\1', match.group())
                     entries = _json.loads(cleaned)
-                    if isinstance(entries, list):
-                        return entries
                 except _json.JSONDecodeError:
-                    pass
-            logger.warning("Failed to parse Gemini JSON response")
-            return None
+                    entries = None
 
-        if not isinstance(entries, list):
-            return None
-        return entries
+        # Some model versions return {"results": [...]} or a similar wrapper.
+        if isinstance(entries, dict):
+            for key in ("results", "items", "detections", "elements", "ocr"):
+                candidate = entries.get(key)
+                if isinstance(candidate, list):
+                    entries = candidate
+                    break
 
+        if isinstance(entries, list):
+            return entries
+
+        logger.warning("Failed to parse Gemini JSON response: %.500s", json_str)
+        return None
     def process_single(self, image: Image.Image) -> tuple[str, float]:
         """Run OCR on a single cropped image region.
 
