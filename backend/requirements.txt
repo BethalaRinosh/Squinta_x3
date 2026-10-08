@@ -1,0 +1,45 @@
+# Web framework
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+
+# Auth
+authlib==1.4.1
+httpx==0.28.1
+itsdangerous==2.2.0
+python-jose[cryptography]==3.3.0
+
+# Database
+sqlalchemy==2.0.36
+aiosqlite==0.20.0
+greenlet==3.1.1
+alembic==1.14.1
+
+# OCR / ML
+transformers==4.47.1
+torch==2.6.0
+torchvision==0.21.0
+peft==0.14.0
+datasets>=2.14.0
+Pillow==11.1.0
+pillow-heif==0.21.0
+accelerate==1.2.1
+opencv-python-headless>=4.8.0
+google-genai>=1.0.0
+openai>=1.0.0
+
+# Google Photos
+google-api-python-client==2.159.0
+google-auth==2.37.0
+
+# Search
+whoosh==2.7.4
+
+# Testing
+pytest==9.1.1
+pytest-asyncio==1.4.0
+
+# Utils
+python-dotenv==1.0.1
+pydantic-settings==2.7.1
+aiofiles==24.1.0
