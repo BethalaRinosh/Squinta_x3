@@ -26,6 +26,23 @@ class DocumentCreate(BaseModel):
     source: str = Field(default="upload", pattern=r"^(upload|camera|google_photos)$")
 
 
+class VisualElementOut(BaseModel):
+    id: int
+    page_id: int
+    element_type: str
+    bbox_x: int
+    bbox_y: int
+    bbox_w: int
+    bbox_h: int
+    confidence: float
+    label: Optional[str] = None
+    geometry: Optional[str] = None
+    metadata: Optional[str] = None
+    created_at: datetime.datetime
+
+    model_config = {"from_attributes": True}
+
+
 class OcrResultOut(BaseModel):
     id: int
     page_id: int
@@ -64,6 +81,7 @@ class PageOut(BaseModel):
     processing_status: str = "idle"
     created_at: datetime.datetime
     ocr_results: List[OcrResultOut] = []
+    visual_elements: List[VisualElementOut] = []
 
     model_config = {"from_attributes": True}
 
