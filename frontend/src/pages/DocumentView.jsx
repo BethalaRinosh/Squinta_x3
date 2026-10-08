@@ -23,6 +23,8 @@ export default function DocumentView() {
   const [trainMode, setTrainMode] = useState(false);
   const [trainIndex, setTrainIndex] = useState(0);
   const [resultView, setResultView] = useState('formatted');
+  const [speechRate, setSpeechRate] = useState(1);
+  const [speakingResultId, setSpeakingResultId] = useState(null);
   const [visualMode, setVisualMode] = useState(() => (
     localStorage.getItem('squinta.visualMode') === 'true'
   ));
@@ -246,6 +248,67 @@ export default function DocumentView() {
   const handleCorrect = (resultId, text) => {
     correctionMutation.mutate({ resultId, text });
   };
+
+  const stopSpeaking = useCallback(() => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    setSpeakingResultId(null);
+  }, []);
+
+  const speakResult = useCallback((result) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      toast.error('Text-to-speech is not supported in this browser.');
+      return;
+    }
+
+    const text = String(result?.translated_text || result?.text || '').trim();
+    if (!text) return;
+
+    if (speakingResultId === result.id) {
+      stopSpeaking();
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = speechRate;
+    utterance.pitch = 1;
+    utterance.onend = () => setSpeakingResultId(null);
+    utterance.onerror = () => setSpeakingResultId(null);
+
+    setSpeakingResultId(result.id);
+    window.speechSynthesis.speak(utterance);
+  }, [speakingResultId, speechRate, stopSpeaking, toast]);
+
+  const speakSelection = useCallback(() => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      toast.error('Text-to-speech is not supported in this browser.');
+      return;
+    }
+
+    const selection = window.getSelection?.();
+    const text = selection?.toString().trim();
+    if (!text) {
+      toast.error('Select some OCR text first, then click Read selection.');
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = speechRate;
+    utterance.pitch = 1;
+    utterance.onend = () => setSpeakingResultId(null);
+    utterance.onerror = () => setSpeakingResultId(null);
+
+    setSpeakingResultId('__selection__');
+    window.speechSynthesis.speak(utterance);
+  }, [speechRate, toast]);
+
+  useEffect(() => () => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+  }, []);
 
   const goToPrevPage = () => {
     if (selectedPageIndex > 0) setSelectedPageIndex(selectedPageIndex - 1);
@@ -576,8 +639,34 @@ export default function DocumentView() {
         <div className="lg:col-span-4">
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden sticky top-20">
             <div className="px-4 py-3 border-b border-gray-100">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <h2 className="text-sm font-semibold text-gray-700">OCR Results</h2>
+                {results.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-1 text-[11px] text-gray-400" title="Speech speed">
+                      <span>Speed</span>
+                      <select
+                        value={speechRate}
+                        onChange={(e) => setSpeechRate(Number(e.target.value))}
+                        className="rounded border border-gray-200 bg-white px-1.5 py-0.5 text-[11px] text-gray-600 outline-none"
+                        aria-label="Speech speed"
+                      >
+                        <option value="0.8">0.8×</option>
+                        <option value="1">1×</option>
+                        <option value="1.2">1.2×</option>
+                        <option value="1.5">1.5×</option>
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={speakingResultId ? stopSpeaking : speakSelection}
+                      className={"inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors " + (speakingResultId ? "bg-gray-100 text-gray-700 hover:bg-gray-200" : "bg-primary-600 text-white hover:bg-primary-700")}
+                      title={speakingResultId ? "Stop reading" : "Select OCR text and read it aloud"}
+                    >
+                      {speakingResultId ? "Stop" : "Read selection"}
+                    </button>
+                  </div>
+                )}
                 {currentPageId && (
                   <button
                     onClick={() => processPageMutation.mutate()}
@@ -624,6 +713,8 @@ export default function DocumentView() {
                     imageSrc={currentPage.image_url || currentPage.url}
                     onSelectResult={setSelectedResultId}
                     selectedResultId={selectedResultId}
+                    onSpeak={speakResult}
+                    speakingResultId={speakingResultId}
                   />
                 ) : (
                   <OcrResultList
@@ -631,6 +722,8 @@ export default function DocumentView() {
                     selectedResultId={selectedResultId}
                     onSelectResult={setSelectedResultId}
                     onCorrect={handleCorrect}
+                    onSpeak={speakResult}
+                    speakingResultId={speakingResultId}
                   />
                 )
               ) : (
