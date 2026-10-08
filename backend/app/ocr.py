@@ -1047,7 +1047,9 @@ class GeminiOcrEngine:
                     best = candidates[0]
                     # Don't replace a detailed curved/angled Gemini path with a
                     # short CV fragment. Use CV only when it is clearly substantial.
-                    if best[0] >= max(12, 0.45 * max(w, h)):
+                    if best[0] >= max(12, 0.45 * max(w, h)) and (
+                        element_type == "underline" or len(points) < 2
+                    ):
                         points = best[2]
 
         # A box/table outline should follow a detected quadrilateral when one is
