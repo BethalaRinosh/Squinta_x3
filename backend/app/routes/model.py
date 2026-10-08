@@ -154,7 +154,7 @@ async def model_status(
 @router.post("/train", response_model=TrainResponse)
 async def train_model(
     body: TrainRequest = TrainRequest(),
-    background_tasks: BackgroundTasks = BackgroundTasks(),
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> TrainResponse:
