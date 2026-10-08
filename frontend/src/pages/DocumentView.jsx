@@ -548,7 +548,13 @@ export default function DocumentView() {
                 <PageViewer
                   imageSrc={currentPage.image_url || currentPage.url}
                   ocrResults={results}
-                  visualElements={currentPage.visual_elements || []}
+                  visualElements={
+                    visualMode
+                      ? (currentPage.visual_elements || [])
+                      : (currentPage.visual_elements || []).filter((element) => (
+                          String(element.element_type || '').toLowerCase() === 'arrow'
+                        ))
+                  }
                   selectedResultId={selectedResultId}
                   onSelectResult={setSelectedResultId}
                   crop={cropData}
