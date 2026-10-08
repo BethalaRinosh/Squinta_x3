@@ -237,10 +237,21 @@ export default function PageViewer({
               }
 
               const rawPoints = Array.isArray(geometry?.points) ? geometry.points : [];
+              const legacyNormalized = geometry?.coordinate_space !== 'pixel';
               const points = rawPoints
                 .filter((p) => Array.isArray(p) && p.length >= 2)
-                .map((p) => [Number(p[0]), Number(p[1])])
-                .filter(([px, py]) => Number.isFinite(px) && Number.isFinite(py));
+                .map((p) => {
+                  const px = Number(p[0]);
+                  const py = Number(p[1]);
+                  if (!Number.isFinite(px) || !Number.isFinite(py)) return null;
+                  return legacyNormalized
+                    ? [
+                        (px / 1000) * (imgDimensions.naturalWidth || 1),
+                        (py / 1000) * (imgDimensions.naturalHeight || 1),
+                      ]
+                    : [px, py];
+                })
+                .filter(Boolean);
 
               const fallback = [
                 [x, y],
@@ -278,10 +289,20 @@ export default function PageViewer({
 
               if (type === 'circle') {
                 const center = Array.isArray(geometry?.center) && geometry.center.length >= 2
-                  ? [Number(geometry.center[0]), Number(geometry.center[1])]
+                  ? legacyNormalized
+                    ? [
+                        (Number(geometry.center[0]) / 1000) * (imgDimensions.naturalWidth || 1),
+                        (Number(geometry.center[1]) / 1000) * (imgDimensions.naturalHeight || 1),
+                      ]
+                    : [Number(geometry.center[0]), Number(geometry.center[1])]
                   : [x + w / 2, y + h / 2];
                 const radius = Array.isArray(geometry?.radius) && geometry.radius.length >= 2
-                  ? [Math.max(1, Number(geometry.radius[0])), Math.max(1, Number(geometry.radius[1]))]
+                  ? legacyNormalized
+                    ? [
+                        Math.max(1, (Number(geometry.radius[0]) / 1000) * (imgDimensions.naturalWidth || 1)),
+                        Math.max(1, (Number(geometry.radius[1]) / 1000) * (imgDimensions.naturalHeight || 1)),
+                      ]
+                    : [Math.max(1, Number(geometry.radius[0])), Math.max(1, Number(geometry.radius[1]))]
                   : [w / 2, h / 2];
 
                 return (
