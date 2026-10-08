@@ -9,6 +9,7 @@ result models.
 from __future__ import annotations
 
 import unicodedata
+from functools import lru_cache
 from collections import Counter, defaultdict
 
 from app.language_detection.models import (
@@ -27,8 +28,6 @@ def translate_text(text: str, source_language: str, target_language: str) -> str
     Cache successful translations, then use the configured Gemini API as a
     fallback rather than surfacing a raw provider error to the user.
     """
-    from functools import lru_cache
-
     clean_text = (text or "").strip()
     source_language = (source_language or "").strip().lower()
     target_language = (target_language or "").strip().lower()
