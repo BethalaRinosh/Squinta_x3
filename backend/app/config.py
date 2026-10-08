@@ -57,6 +57,9 @@ class Settings(BaseSettings):
     # and the operator has explicitly opted in to a potentially large model download.
     ENABLE_TROCR_FALLBACK: bool = False
 
+    # Enable domain-aware OCR verification.
+    ENABLE_CONTEXT_ENGINE: bool = True
+
     # JWT config
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
