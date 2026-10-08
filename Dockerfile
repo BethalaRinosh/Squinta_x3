@@ -8,7 +8,7 @@ RUN npm run build
 
 # Stage 2: Python backend
 FROM python:3.11-slim AS backend
-WORKDIR /app
+WORKDIR /app/backend
 
 # Install system deps for torch/PIL
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -18,13 +18,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY backend/ ./backend/
-COPY --from=frontend-build /app/frontend/dist ./frontend/dist
+COPY backend/ ./
+COPY --from=frontend-build /app/frontend/dist /app/frontend/dist
 
 # Create data directories
-RUN mkdir -p data/uploads data/models
+RUN mkdir -p /app/data/uploads /app/data/models
 
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8000
 
-CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
