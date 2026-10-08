@@ -28,6 +28,7 @@ from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 register_heif_opener()
 
 from app.config import settings
+from app.context_engine import build_context, build_context_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -375,6 +376,25 @@ class OcrEngine:
         """
         _, confidence = self.process_single(image)
         return confidence
+
+    def refine_with_context(self, image: Image.Image, candidate: str) -> tuple[str, dict]:
+        """Run a constrained second vision pass using detected domain context."""
+        context = build_context(candidate)
+        if context.get("domain") == "general" or context.get("confidence", 0.0) < 0.55:
+            return candidate.strip(), context
+
+        prompt = GEMINI_CONTEXT_CORRECTION_PROMPT.format(
+            candidate=candidate.strip(),
+            context=build_context_prompt(candidate, context),
+        )
+        try:
+            refined = self._call(prompt, image, max_tokens=4096, temperature=0.0)
+            # Context refinement must never turn a valid candidate into an empty result.
+            if refined and refined.strip() and refined.strip().upper() != "EMPTY":
+                return refined.strip(), context
+        except Exception:
+            logger.exception("Gemini context refinement failed")
+        return candidate.strip(), context
 
     def process_page(
         self,
@@ -739,6 +759,24 @@ def deskew_page(image_path: str) -> str | None:
     logger.info("deskew_page: corrected %.2f° — %s → %s", angle, image_path, new_path)
     return new_path
 
+
+GEMINI_CONTEXT_CORRECTION_PROMPT = """You are a handwriting OCR verification engine.
+
+The image contains handwritten text. A first OCR pass produced the candidate text below.
+Use the image as the ONLY source of truth and return the corrected candidate text.
+
+Rules:
+- Keep every word, number, symbol, unit, abbreviation and punctuation that is visibly supported.
+- You may correct a visually ambiguous token when the domain context makes the candidate materially more likely.
+- Never invent text merely because it is common in the detected domain.
+- Preserve uncertainty with [UNCERTAIN] when the image does not support a reliable reading.
+- Return ONLY the corrected transcription, no explanation.
+
+CANDIDATE OCR:
+{candidate}
+
+{context}
+"""
 
 GEMINI_SINGLE_PROMPT = """You are an expert handwriting OCR system. This image shows a cropped region of handwritten text.
 
@@ -1318,6 +1356,8 @@ class GeminiOcrEngine:
         to handle notebook paper).
         """
 
+        import json
+
         image = preprocess_image(image_path, rotation=rotation)
 
         crop_offset_x = 0
@@ -1347,6 +1387,49 @@ class GeminiOcrEngine:
 
         if not raw_text or raw_text.strip() == "[]":
             return GeminiOcrResult(rotation=0, segments=[], visual_elements=[])
+
+        # First parse gives us the candidate text used for domain detection.
+        parsed_candidate = self._parse_gemini_json(raw_text)
+        candidate_text = ""
+        if isinstance(parsed_candidate, list):
+            candidate_text = "\\n".join(
+                str(item.get("text") or item.get("text_content") or "").strip()
+                for item in parsed_candidate
+                if isinstance(item, dict) and str(item.get("type") or "text").lower() != "visual"
+                and (item.get("text") or item.get("text_content"))
+            )
+        else:
+            candidate_text = "\\n".join(
+                line.strip() for line in raw_text.splitlines() if line.strip()
+            )
+
+        # Domain-aware second pass. The original image remains the ground truth.
+        if candidate_text:
+            refined_text, context = self.refine_with_context(image, candidate_text)
+            if refined_text != candidate_text:
+                # Feed the corrected transcription into the existing line/bbox pipeline.
+                candidate_lines = [line.strip() for line in refined_text.splitlines() if line.strip()]
+                if candidate_lines and isinstance(parsed_candidate, list):
+                    text_idx = 0
+                    rebuilt = []
+                    for item in parsed_candidate:
+                        if not isinstance(item, dict):
+                            continue
+                        if str(item.get("type") or "text").lower() == "visual":
+                            rebuilt.append(item)
+                            continue
+                        if text_idx < len(candidate_lines):
+                            copied = dict(item)
+                            copied["text"] = candidate_lines[text_idx]
+                            rebuilt.append(copied)
+                            text_idx += 1
+                    raw_text = json.dumps(rebuilt, ensure_ascii=False)
+                else:
+                    raw_text = refined_text
+            logger.info(
+                "Context engine: domain=%s confidence=%.2f for page %s",
+                context.get("domain", "general"), float(context.get("confidence", 0.0)), image_path,
+            )
 
         # Extract text lines and visual structures from Gemini response.
         entries = self._parse_gemini_json(raw_text)
