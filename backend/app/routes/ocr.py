@@ -135,76 +135,48 @@ async def _run_ocr_on_page(page_id: int, user_id: int, visual_mode: bool = False
 
                 logger.info("Running Gemini OCR on page %d", page_id)
 
-                # Auto-rotate: detect orientation and bake into file.
-                # page.rotation != 0 means we already auto-rotated this
-                # page — skip detection to prevent double-rotation.
-                if page.rotation == 0:
+                # Keep the uploaded/display image immutable on the Gemini path.
+                # Gemini is rotation-aware, so trusting one orientation guess and
+                # baking it into the stored file is unsafe. A bad 90° guess made
+                # the UI show a sideways image and could also make OCR return no text.
+                # Perspective warp and deskew can similarly distort camera photos.
+                # These transforms are therefore opt-in for controlled testing.
+                if settings.GEMINI_AUTO_ROTATE:
+                    logger.warning("GEMINI_AUTO_ROTATE enabled; stored image may be rotated.")
                     from app.ocr import preprocess_image as _pi
                     raw_img = await asyncio.to_thread(_pi, page.image_path, 0)
-                    detected_rot = await asyncio.to_thread(
-                        gemini.detect_rotation, raw_img,
-                    )
+                    detected_rot = await asyncio.to_thread(gemini.detect_rotation, raw_img)
                     if detected_rot != 0:
-                        logger.info(
-                            "Auto-rotate page %d: Gemini detected %d°",
-                            page_id, detected_rot,
-                        )
                         new_path = _bake_rotation(page.image_path, detected_rot)
                         page.image_path = new_path
-                        page.rotation = detected_rot  # flag: already rotated
+                        page.rotation = detected_rot
                         await db.flush()
 
-                # Perspective warp: detect page corners and crop to
-                # just the notebook page (removes desk, solar panels,
-                # hands, etc.).  Only runs once per page.
-                if not page.page_warped:
-                    from app.ocr import perspective_warp_page as _warp
-                    warp_img = await asyncio.to_thread(
-                        _pi, page.image_path, 0,
-                    )
-                    corners = await asyncio.to_thread(
-                        gemini.detect_page_corners, warp_img,
-                    )
-                    if corners is not None:
-                        new_path = await asyncio.to_thread(
-                            _warp, page.image_path, corners,
-                        )
-                        if new_path is not None:
-                            logger.info(
-                                "Perspective warp page %d: %s → %s",
-                                page_id, page.image_path, new_path,
-                            )
-                            page.image_path = new_path
-                            # Clear any stale crop fields.
-                            page.crop_x = page.crop_y = None
-                            page.crop_w = page.crop_h = None
-                    page.page_warped = 1
-                    await db.flush()
+                if settings.GEMINI_PAGE_WARP:
+                    logger.warning("GEMINI_PAGE_WARP enabled; stored image may be warped.")
+                    from app.ocr import preprocess_image as _pi, perspective_warp_page as _warp
+                    if not page.page_warped:
+                        warp_img = await asyncio.to_thread(_pi, page.image_path, 0)
+                        corners = await asyncio.to_thread(gemini.detect_page_corners, warp_img)
+                        if corners is not None:
+                            new_path = await asyncio.to_thread(_warp, page.image_path, corners)
+                            if new_path is not None:
+                                page.image_path = new_path
+                                page.crop_x = page.crop_y = None
+                                page.crop_w = page.crop_h = None
+                        page.page_warped = 1
+                        await db.flush()
 
-                # Deskew: straighten small text skew so horizontal
-                # bounding boxes align with the (now-horizontal) text.
-                from app.ocr import deskew_page as _deskew
-                deskewed = await asyncio.to_thread(
-                    _deskew, page.image_path,
-                )
-                if deskewed is not None:
-                    logger.info(
-                        "Deskew page %d: %s → %s",
-                        page_id, page.image_path, deskewed,
-                    )
-                    page.image_path = deskewed
-                    await db.flush()
+                if settings.GEMINI_DESKEW:
+                    logger.warning("GEMINI_DESKEW enabled; stored image may be modified.")
+                    from app.ocr import deskew_page as _deskew
+                    deskewed = await asyncio.to_thread(_deskew, page.image_path)
+                    if deskewed is not None:
+                        page.image_path = deskewed
+                        await db.flush()
 
-                # Commit image path changes immediately so other
-                # sessions see the correct (renamed) file path.
-                await db.commit()
-
-                # Re-read page to get the committed image_path.
-                result2 = await db.execute(
-                    select(Page).where(Page.id == page_id)
-                )
-                page = result2.scalar_one()
-
+                # Use the actual uploaded image for Gemini OCR. This keeps the
+                # browser image and OCR coordinate system in the same pixel space.
                 # Process with rotation=0 — file is already correctly
                 # oriented (either originally or after baking above).
                 gemini_result = await asyncio.to_thread(
