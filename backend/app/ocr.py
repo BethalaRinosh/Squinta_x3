@@ -396,24 +396,6 @@ class OcrEngine:
             logger.exception("Gemini context refinement failed")
         return candidate.strip(), context
 
-    def refine_with_context(self, image: Image.Image, candidate: str) -> tuple[str, dict]:
-        """Run a constrained second vision pass using detected domain context."""
-        context = build_context(candidate)
-        if context.get("domain") == "general" or context.get("confidence", 0.0) < 0.55:
-            return candidate.strip(), context
-
-        prompt = GEMINI_CONTEXT_CORRECTION_PROMPT.format(
-            candidate=candidate.strip(),
-            context=build_context_prompt(candidate, context),
-        )
-        try:
-            refined = self._call(prompt, image, max_tokens=4096, temperature=0.0)
-            if refined and refined.strip() and refined.strip().upper() != "EMPTY":
-                return refined.strip(), context
-        except Exception:
-            logger.exception("Gemini context refinement failed")
-        return candidate.strip(), context
-
     def process_page(
         self,
         image_path: str | Path,
@@ -796,7 +778,7 @@ CANDIDATE OCR:
 {context}
 """
 
-GEMINI_CONTEXT_CORRECTION_PROMPT = """You are a handwriting OCR verification engine.\n\nThe image contains handwritten text. A first OCR pass produced the candidate text below.\nUse the image as the ONLY source of truth and return the corrected candidate text.\n\nRules:\n- Keep every word, number, symbol, unit, abbreviation and punctuation that is visibly supported.\n- You may correct a visually ambiguous token when the domain context makes the candidate materially more likely.\n- Never invent text merely because it is common in the detected domain.\n- Preserve uncertainty with [UNCERTAIN] when the image does not support a reliable reading.\n- Return ONLY the corrected transcription, no explanation.\n\nCANDIDATE OCR:\n{candidate}\n\n{context}\n"""\n\n\nGEMINI_SINGLE_PROMPT = """You are an expert handwriting OCR system. This image shows a cropped region of handwritten text.
+GEMINI_SINGLE_PROMPT = """You are an expert handwriting OCR system. This image shows a cropped region of handwritten text.
 
 Transcribe ALL the handwritten text in this image precisely.
 Capture every word, punctuation mark, and number.
@@ -1410,7 +1392,7 @@ class GeminiOcrEngine:
         parsed_candidate = self._parse_gemini_json(raw_text)
         candidate_text = ""
         if isinstance(parsed_candidate, list):
-            candidate_text = "\\n".join(
+            candidate_text = "\n".join(
                 str(item.get("text") or item.get("text_content") or "").strip()
                 for item in parsed_candidate
                 if isinstance(item, dict) and str(item.get("type") or "text").lower() != "visual"
@@ -1425,25 +1407,34 @@ class GeminiOcrEngine:
         if candidate_text:
             refined_text, context = self.refine_with_context(image, candidate_text)
             if refined_text != candidate_text:
-                # Feed the corrected transcription into the existing line/bbox pipeline.
+                # Keep Gemini's original boxes/visual elements, but replace only
+                # the textual payload returned by the context pass.
                 candidate_lines = [line.strip() for line in refined_text.splitlines() if line.strip()]
                 if candidate_lines and isinstance(parsed_candidate, list):
-                    text_idx = 0
+                    text_items = [
+                        item for item in parsed_candidate
+                        if isinstance(item, dict)
+                        and str(item.get("type") or "text").lower() != "visual"
+                    ]
                     rebuilt = []
+                    text_idx = 0
                     for item in parsed_candidate:
                         if not isinstance(item, dict):
                             continue
-                        if str(item.get("type") or "text").lower() == "visual":
-                            rebuilt.append(item)
-                            continue
-                        if text_idx < len(candidate_lines):
-                            copied = dict(item)
-                            copied["text"] = candidate_lines[text_idx]
-                            rebuilt.append(copied)
+                        copied = dict(item)
+                        if str(item.get("type") or "text").lower() != "visual":
+                            if text_idx < len(candidate_lines):
+                                copied["text"] = candidate_lines[text_idx]
                             text_idx += 1
+                        rebuilt.append(copied)
                     raw_text = json.dumps(rebuilt, ensure_ascii=False)
                 else:
-                    raw_text = refined_text
+                    # Preserve structured-output parsing by wrapping plain lines.
+                    raw_text = json.dumps(
+                        [{"type": "text", "text": line}
+                         for line in candidate_lines],
+                        ensure_ascii=False,
+                    )
             logger.info(
                 "Context engine: domain=%s confidence=%.2f for page %s",
                 context.get("domain", "general"), float(context.get("confidence", 0.0)), image_path,
