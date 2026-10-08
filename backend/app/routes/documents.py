@@ -272,7 +272,10 @@ async def camera_capture(
 
     stmt = (
         select(Document)
-        .options(selectinload(Document.pages).selectinload(Page.ocr_results))
+        .options(
+            selectinload(Document.pages).selectinload(Page.ocr_results),
+            selectinload(Document.pages).selectinload(Page.visual_elements),
+        )
         .where(Document.id == document.id)
     )
     result = await db.execute(stmt)
@@ -404,7 +407,10 @@ async def rotate_page(
     stmt = (
         select(Page)
         .join(Document, Page.document_id == Document.id)
-        .options(selectinload(Page.ocr_results))
+        .options(
+            selectinload(Page.ocr_results),
+            selectinload(Page.visual_elements),
+        )
         .where(Page.id == page_id, Document.user_id == current_user.id)
     )
     result = await db.execute(stmt)
