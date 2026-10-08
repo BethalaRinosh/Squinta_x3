@@ -198,88 +198,198 @@ export default function PageViewer({
             );
           })}
 
-        {/* Detected visual structures: arrows, brackets, tables, boxes, circles, etc. */}
-        {loaded && !drawMode && visualElements.map((element) => {
-          const x = element.bbox_x;
-          const y = element.bbox_y;
-          const w = element.bbox_w;
-          const h = element.bbox_h;
-          if (x == null || y == null || w == null || h == null) return null;
-
-          const type = (element.element_type || 'diagram').toLowerCase();
-          const label = element.label || type;
-          let geometry = null;
-          try {
-            geometry = element.geometry ? JSON.parse(element.geometry) : null;
-          } catch {
-            geometry = null;
-          }
-
-          if (type === 'arrow') {
-            return (
-              <div
-                key={`visual-${element.id}`}
-                className="absolute pointer-events-none"
-                style={{
-                  left: `${x * scaleX}px`,
-                  top: `${(y + h / 2) * scaleY}px`,
-                  width: `${w * scaleX}px`,
-                  height: '2px',
-                }}
-                title={label}
+        {/* Detected visual structures. Render the actual geometry returned by
+            OCR instead of approximating every element with an axis-aligned CSS box. */}
+        {loaded && !drawMode && visualElements.length > 0 && (
+          <svg
+            className="absolute inset-0 w-full h-full pointer-events-none overflow-visible"
+            viewBox={`0 0 ${imgDimensions.naturalWidth || 1} ${imgDimensions.naturalHeight || 1}`}
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <defs>
+              <marker
+                id="visual-arrow-head"
+                markerWidth="10"
+                markerHeight="8"
+                refX="8"
+                refY="4"
+                orient="auto"
+                markerUnits="userSpaceOnUse"
               >
-                <div className="relative w-full h-full bg-blue-500">
-                  <div className="absolute right-0 -top-1.5 w-0 h-0 border-t-2 border-b-2 border-l-4 border-t-transparent border-b-transparent border-l-blue-500" />
-                </div>
-              </div>
-            );
-          }
+                <path d="M0,0 L10,4 L0,8 Z" fill="currentColor" />
+              </marker>
+            </defs>
 
-          const borderClass =
-            type === 'circle' ? 'rounded-full border-blue-500' :
-            type === 'table' ? 'border-dashed border-indigo-500' :
-            type === 'bracket' ? 'border-dashed border-amber-500' :
-            type === 'underline' ? 'border-b-2 border-amber-500' :
-            'border-2 border-blue-400';
+            {visualElements.map((element) => {
+              const x = Number(element.bbox_x);
+              const y = Number(element.bbox_y);
+              const w = Number(element.bbox_w);
+              const h = Number(element.bbox_h);
+              if (![x, y, w, h].every(Number.isFinite) || w <= 0 || h <= 0) return null;
 
-          return (
-            <div
-              key={`visual-${element.id}`}
-              className={`absolute pointer-events-none ${borderClass}`}
-              style={{
-                left: `${x * scaleX}px`,
-                top: `${y * scaleY}px`,
-                width: `${w * scaleX}px`,
-                height: `${h * scaleY}px`,
-              }}
-              title={label}
-            >
-              {type === 'table' && geometry?.rows > 1 && geometry?.columns > 1 && (
-                <>
-                  {Array.from({ length: geometry.rows - 1 }).map((_, index) => (
-                    <div
-                      key={`row-${index}`}
-                      className="absolute left-0 right-0 border-t border-indigo-300"
-                      style={{ top: `${((index + 1) / geometry.rows) * 100}%` }}
-                    />
-                  ))}
-                  {Array.from({ length: geometry.columns - 1 }).map((_, index) => (
-                    <div
-                      key={`col-${index}`}
-                      className="absolute top-0 bottom-0 border-l border-indigo-300"
-                      style={{ left: `${((index + 1) / geometry.columns) * 100}%` }}
-                    />
-                  ))}
-                </>
-              )}
-              {type !== 'underline' && (
-                <span className="absolute -top-5 left-0 px-1.5 py-0.5 rounded bg-white/90 border border-gray-200 text-[10px] font-medium text-gray-600 whitespace-nowrap">
-                  {label}
-                </span>
-              )}
-            </div>
-          );
-        })}
+              const type = String(element.element_type || 'diagram').toLowerCase();
+              let geometry = null;
+              try {
+                geometry = element.geometry ? JSON.parse(element.geometry) : null;
+              } catch {
+                geometry = null;
+              }
+
+              const rawPoints = Array.isArray(geometry?.points) ? geometry.points : [];
+              const points = rawPoints
+                .filter((p) => Array.isArray(p) && p.length >= 2)
+                .map((p) => [Number(p[0]), Number(p[1])])
+                .filter(([px, py]) => Number.isFinite(px) && Number.isFinite(py));
+
+              const fallback = [
+                [x, y],
+                [x + w, y],
+                [x + w, y + h],
+                [x, y + h],
+              ];
+
+              const lineFallback = [
+                [x, y + h / 2],
+                [x + w, y + h / 2],
+              ];
+
+              const pts = points.length >= 2 ? points : fallback;
+              const linePts = points.length >= 2 ? points : lineFallback;
+              const pointString = pts.map(([px, py]) => `${px},${py}`).join(' ');
+              const lineString = linePts.map(([px, py]) => `${px},${py}`).join(' ');
+
+              const stroke =
+                type === 'arrow' ? '#2563eb' :
+                type === 'connector' ? '#7c3aed' :
+                type === 'underline' ? '#d97706' :
+                type === 'bracket' ? '#b45309' :
+                type === 'table' ? '#4f46e5' :
+                '#2563eb';
+
+              const common = {
+                key: `visual-${element.id}`,
+                stroke,
+                strokeWidth: Math.max(2, Math.min(5, Math.max(imgDimensions.naturalWidth, imgDimensions.naturalHeight) / 900)),
+                fill: 'none',
+                vectorEffect: 'non-scaling-stroke',
+                strokeLinecap: 'round',
+                strokeLinejoin: 'round',
+              };
+
+              if (type === 'circle') {
+                const center = Array.isArray(geometry?.center) && geometry.center.length >= 2
+                  ? [Number(geometry.center[0]), Number(geometry.center[1])]
+                  : [x + w / 2, y + h / 2];
+                const radius = Array.isArray(geometry?.radius) && geometry.radius.length >= 2
+                  ? [Math.max(1, Number(geometry.radius[0])), Math.max(1, Number(geometry.radius[1]))]
+                  : [w / 2, h / 2];
+
+                return (
+                  <ellipse
+                    {...common}
+                    cx={center[0]}
+                    cy={center[1]}
+                    rx={radius[0]}
+                    ry={radius[1]}
+                  >
+                    <title>{element.label || 'circle'}</title>
+                  </ellipse>
+                );
+              }
+
+              if (type === 'arrow') {
+                return (
+                  <polyline
+                    {...common}
+                    points={lineString}
+                    markerEnd="url(#visual-arrow-head)"
+                  >
+                    <title>{element.label || 'arrow'}</title>
+                  </polyline>
+                );
+              }
+
+              if (type === 'connector' || type === 'underline' || type === 'bracket') {
+                return (
+                  <polyline {...common} points={lineString}>
+                    <title>{element.label || type}</title>
+                  </polyline>
+                );
+              }
+
+              if (type === 'table') {
+                const quad = points.length >= 4 ? points.slice(0, 4) : fallback;
+                const rows = Math.max(1, Number(geometry?.rows) || 1);
+                const columns = Math.max(1, Number(geometry?.columns) || 1);
+                const [tl, tr, br, bl] = quad;
+
+                const lerp = (a, b, t) => [
+                  a[0] + (b[0] - a[0]) * t,
+                  a[1] + (b[1] - a[1]) * t,
+                ];
+                const gridLines = [];
+
+                for (let row = 1; row < rows; row += 1) {
+                  const t = row / rows;
+                  const left = lerp(tl, bl, t);
+                  const right = lerp(tr, br, t);
+                  gridLines.push(
+                    <line
+                      key={`row-${row}`}
+                      {...common}
+                      strokeWidth={Math.max(1, common.strokeWidth * 0.65)}
+                      x1={left[0]}
+                      y1={left[1]}
+                      x2={right[0]}
+                      y2={right[1]}
+                    />,
+                  );
+                }
+
+                for (let column = 1; column < columns; column += 1) {
+                  const t = column / columns;
+                  const top = lerp(tl, tr, t);
+                  const bottom = lerp(bl, br, t);
+                  gridLines.push(
+                    <line
+                      key={`column-${column}`}
+                      {...common}
+                      strokeWidth={Math.max(1, common.strokeWidth * 0.65)}
+                      x1={top[0]}
+                      y1={top[1]}
+                      x2={bottom[0]}
+                      y2={bottom[1]}
+                    />,
+                  );
+                }
+
+                return (
+                  <g key={`visual-${element.id}`}>
+                    <polygon {...common} points={quad.map(([px, py]) => `${px},${py}`).join(' ')}>
+                      <title>{element.label || 'table'}</title>
+                    </polygon>
+                    {gridLines}
+                  </g>
+                );
+              }
+
+              if (type === 'box') {
+                return (
+                  <polygon {...common} points={pointString}>
+                    <title>{element.label || 'box'}</title>
+                  </polygon>
+                );
+              }
+
+              return (
+                <polygon {...common} points={pointString}>
+                  <title>{element.label || type}</title>
+                </polygon>
+              );
+            })}
+          </svg>
+        )}
 
         {/* Drawing rectangle (dashed blue) */}
         {loaded && drawRect && (
