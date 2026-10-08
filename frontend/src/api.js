@@ -7,39 +7,9 @@ const api = axios.create({
   },
 });
 
-// Auth header interceptor
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+// No bearer token is needed in local demo mode.
 
-// Response interceptor for 401 handling
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      // Only redirect if not already on login page
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
-      }
-    }
-    return Promise.reject(error);
-  }
-);
-
-// ---- Auth ----
-
-const BACKEND_ORIGIN = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000').replace(/\/$/, '');
-
-export function login() {
-  // OAuth is a browser navigation, so bypass the Vite /api proxy.
-  // This guarantees the request reaches FastAPI directly during local development.
-  window.location.assign(`${BACKEND_ORIGIN}/auth/login`);
-}
+// ---- Local demo profile ----
 
 export async function getMe() {
   const { data } = await api.get('/auth/me');
@@ -47,9 +17,7 @@ export async function getMe() {
 }
 
 export async function logout() {
-  const { data } = await api.post('/auth/logout');
-  localStorage.removeItem('token');
-  return data;
+  return { message: 'Logout is disabled in local demo mode.' };
 }
 
 // ---- Documents ----

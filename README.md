@@ -238,21 +238,15 @@ Copy `.env.example` to `.env`:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `GOOGLE_CLIENT_ID` | Yes | Google Cloud OAuth 2.0 client ID |
-| `GOOGLE_CLIENT_SECRET` | Yes | Google Cloud OAuth 2.0 client secret |
 | `SECRET_KEY` | Yes | Random string for JWT signing |
 | `GEMINI_API_KEY` | No | Gemini API key for high-quality OCR |
 | `DATABASE_URL` | No | SQLite path (default: `sqlite:///./data/app.db`) |
 | `UPLOAD_DIR` | No | Upload directory (default: `./data/uploads`) |
 | `MODEL_DIR` | No | Model directory (default: `./data/models`) |
 
-### Google Cloud Setup
+### Local demo mode
 
-1. Create a project in [Google Cloud Console](https://console.cloud.google.com/)
-2. Enable the **Google Photos Picker API**
-3. Create OAuth 2.0 credentials (Web application)
-4. Set authorized redirect URI to `http://localhost:8000/auth/callback`
-5. Copy client ID and secret to `.env`
+Google sign-in is disabled. The backend automatically creates and reuses a local demo user, while existing documents, OCR results, corrections, search, and per-user model data continue to use the same internal user ID. This mode is intended for local demos, not a public multi-user deployment. Google Photos import still requires a Google access token and is not available through the removed sign-in flow.
 
 ## API Endpoints
 
@@ -334,10 +328,10 @@ MIT
 - Fixed FastAPI route parameter-ordering errors in the upload and model-training endpoints so the backend can import successfully under Python 3.11.
 
 
-### Authentication reliability
+### Authentication simplification
 
-- Google OAuth browser navigation now targets the configured backend origin directly instead of depending on Vite's `/api` proxy. This makes local sign-in reliable at `http://localhost:5176` while keeping the backend callback at `http://localhost:8000/auth/callback`.
-- Set `VITE_BACKEND_URL` when the frontend and backend use different origins.
+- Removed the mandatory Google sign-in screen and OAuth redirect.
+- API routes continue to use the internal demo user so document ownership and per-user model paths remain intact.
 
 ### Visual structure recognition
 
