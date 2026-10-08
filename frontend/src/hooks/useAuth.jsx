@@ -1,12 +1,37 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { getMe, login as apiLogin, logout as apiLogout } from '../api';
+import { createGuestSession, getMe, login as apiLogin, logout as apiLogout } from '../api';
 
 const AuthContext = createContext(null);
+const GUEST_ID_KEY = 'squinta.guest_id';
+
+function getGuestId() {
+  let guestId = localStorage.getItem(GUEST_ID_KEY);
+  if (!guestId) {
+    // UUIDs keep each browser profile's guest data separate without asking
+    // the user to register or sign in.
+    guestId = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
+          const random = Math.random() * 16 | 0;
+          return (char === 'x' ? random : (random & 0x3 | 0x8)).toString(16);
+        });
+    localStorage.setItem(GUEST_ID_KEY, guestId);
+  }
+  return guestId;
+}
+
+function normalizeUser(user) {
+  if (!user) return null;
+  return {
+    ...user,
+    isGuest: user.is_guest ?? user.isGuest ?? user.email?.endsWith('@guest.squinta.local') ?? false,
+  };
+}
 
 export function AuthProvider({ children }) {
-  // Extract token from URL SYNCHRONOUSLY before any effects or Navigate
-  // components can change the URL (child effects run before parent effects).
-  const [initialToken] = useState(() => {
+  // Keep supporting the optional Google OAuth callback, but never require it.
+  // Read the token before React Router can replace the callback URL.
+  useState(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
     if (token) {
@@ -19,40 +44,66 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Check auth status on mount
   useEffect(() => {
-    async function checkAuth() {
+    let cancelled = false;
+
+    async function restoreSession() {
       const token = localStorage.getItem('token');
-      if (!token) {
-        setLoading(false);
-        return;
+      if (token) {
+        try {
+          const currentUser = await getMe();
+          if (!cancelled) setUser(normalizeUser(currentUser));
+          return;
+        } catch {
+          // Expired/invalid tokens fall back to this browser's guest session.
+          localStorage.removeItem('token');
+        }
       }
+
       try {
-        const userData = await getMe();
-        setUser(userData);
+        const session = await createGuestSession(getGuestId());
+        localStorage.setItem('token', session.token);
+        if (!cancelled) setUser(normalizeUser(session.user));
       } catch {
-        localStorage.removeItem('token');
-        setUser(null);
+        if (!cancelled) setUser(null);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
+
+      // The valid-token branch also needs to release the initial loading view.
+      if (!cancelled) setLoading(false);
     }
-    checkAuth();
+
+    restoreSession();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const login = useCallback(() => {
+    // Optional: connect Google when using Google Photos, not to enter Squinta.
     apiLogin();
   }, []);
 
   const logout = useCallback(async () => {
-    try {
-      await apiLogout();
-    } catch {
-      // Logout even if API call fails
+    // "Log out" from a connected Google account means switching back to guest
+    // mode, not being sent to a login wall.
+    if (user && !user.isGuest) {
+      try {
+        await apiLogout();
+      } catch {
+        // Clear the local Google session even if the remote logout fails.
+      }
     }
     localStorage.removeItem('token');
-    setUser(null);
-  }, []);
+    try {
+      const session = await createGuestSession(getGuestId());
+      localStorage.setItem('token', session.token);
+      setUser(normalizeUser(session.user));
+    } catch {
+      setUser(null);
+    }
+  }, [user]);
 
   const value = {
     user,
@@ -60,6 +111,7 @@ export function AuthProvider({ children }) {
     login,
     logout,
     isAuthenticated: !!user,
+    isGuest: !!user?.isGuest,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
