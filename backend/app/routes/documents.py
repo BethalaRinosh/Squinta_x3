@@ -140,7 +140,7 @@ async def list_documents(
 async def upload_document(
     files: List[UploadFile] = File(...),
     name: str = Form(default=""),
-    background_tasks: BackgroundTasks = BackgroundTasks(),
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Document:
