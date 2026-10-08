@@ -1,4 +1,5 @@
-from app.language_detection import (, translate_text
+from app.language_detection import (
+    translate_text,
     LanguageDetector,
     SUPPORTED_LANGUAGES,
     build_ocr_language_annotation,
