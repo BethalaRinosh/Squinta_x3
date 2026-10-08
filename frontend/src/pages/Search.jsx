@@ -9,7 +9,7 @@ function highlightMatch(text, query) {
   const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
   const parts = text.split(regex);
   return parts.map((part, i) =>
-    regex.test(part) ? (
+    i % 2 === 1 ? (
       <mark key={i} className="bg-amber-200 text-amber-900 rounded px-0.5">
         {part}
       </mark>
