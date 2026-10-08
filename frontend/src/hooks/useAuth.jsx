@@ -24,7 +24,9 @@ function normalizeUser(user) {
   if (!user) return null;
   return {
     ...user,
-    isGuest: user.is_guest ?? user.isGuest ?? user.email?.endsWith('@guest.squinta.local') ?? false,
+    // Existing Google accounts may have no explicit guest flag, while the
+    // locally generated guest address always uses this reserved suffix.
+    isGuest: user.is_guest ?? user.isGuest ?? Boolean(user.email?.endsWith('@guest.squinta.local')),
   };
 }
 
