@@ -111,7 +111,8 @@ from app.routes.auth import router as auth_router  # noqa: E402
 from app.routes.corrections import router as corrections_router  # noqa: E402
 from app.routes.documents import router as documents_router  # noqa: E402
 from app.routes.model import router as model_router  # noqa: E402
-from app.routes.ocr import router as ocr_router  # noqa: E402\nfrom app.routes.summary import router as summary_router  # noqa: E402
+from app.routes.ocr import router as ocr_router  # noqa: E402
+from app.routes.summary import router as summary_router  # noqa: E402
 from app.routes.photos import router as photos_router  # noqa: E402
 from app.routes.search import router as search_router  # noqa: E402
 
