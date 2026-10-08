@@ -788,7 +788,7 @@ class OpenAIOcrEngine:
 
         lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
         if not lines:
-            return GeminiOcrResult(rotation=0, segments=[])
+            return GeminiOcrResult(rotation=0, segments=[], visual_elements=[])
 
         width, height = image.size
         spacing = max(int(height / max(len(lines), 1)), 20)
@@ -801,7 +801,7 @@ class OpenAIOcrEngine:
                     bbox=(0, idx * spacing, width, spacing),
                 )
             )
-        return GeminiOcrResult(rotation=0, segments=segments, visual_elements=visual_elements)
+        return GeminiOcrResult(rotation=0, segments=segments, visual_elements=[])
 
 
 class GeminiOcrEngine:
