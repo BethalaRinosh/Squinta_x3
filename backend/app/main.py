@@ -2,11 +2,13 @@
 
 import logging
 import os
+from pathlib import Path
 from contextlib import asynccontextmanager
 
 logging.basicConfig(level=logging.INFO, format="%(name)s %(levelname)s: %(message)s")
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
@@ -126,6 +128,19 @@ app.include_router(model_router)
 
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
+
+# In the production Docker image, the built React app lives outside the
+# backend package. Serve it from FastAPI so Docker exposes a single app URL.
+FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+
+if FRONTEND_DIST.exists():
+    @app.get("/{path:path}", include_in_schema=False)
+    async def serve_spa(path: str):
+        requested = (FRONTEND_DIST / path).resolve()
+        if requested.is_file() and FRONTEND_DIST in requested.parents:
+            return FileResponse(requested)
+        return FileResponse(FRONTEND_DIST / "index.html")
+
 
 # ── Health check ──────────────────────────────────────────────────────────────
 
