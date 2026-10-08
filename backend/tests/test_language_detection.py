@@ -1,4 +1,4 @@
-from app.language_detection import (
+from app.language_detection import (, translate_text
     LanguageDetector,
     SUPPORTED_LANGUAGES,
     build_ocr_language_annotation,
@@ -107,3 +107,8 @@ def test_non_text_region_returns_unconfigured_result():
     assert result.language == "unknown"
     assert result.confidence == 0.0
     assert result.metadata["reason"] == "image_region_detection_not_configured"
+
+
+
+def test_translate_text_same_language_is_noop():
+    assert translate_text("hello", "en", "en") == "hello"
