@@ -65,6 +65,7 @@ class OcrResultOut(BaseModel):
     model_version: Optional[str] = None
     ink_layer: str = "MAIN_INK"
     ink_metadata: Optional[str] = None
+    struck_through: bool = False
     created_at: datetime.datetime
 
     model_config = {"from_attributes": True}
