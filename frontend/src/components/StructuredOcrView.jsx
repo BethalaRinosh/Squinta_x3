@@ -301,8 +301,15 @@ export default function StructuredOcrView({
                   'rounded px-0.5 transition-colors hover:bg-primary-50 ' +
                   (isSelected ? 'bg-primary-100 text-primary-800' : 'text-gray-800')
                 }
-                style={{ fontSize: fontSize + 'px' }}
-                title={'Confidence: ' + Math.round((result.confidence || 0) * 100) + '%'}
+                style={{
+                  fontSize: fontSize + 'px',
+                  textDecoration: result.struck_through ? 'line-through' : 'none',
+                  textDecorationThickness: result.struck_through ? '2px' : undefined,
+                }}
+                title={
+                  'Confidence: ' + Math.round((result.confidence || 0) * 100) + '%' +
+                  (result.struck_through ? ' · Detected as struck through' : '')
+                }
               >
                 {result.text.trim()}
               </button>
