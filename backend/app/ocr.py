@@ -379,6 +379,8 @@ class OcrEngine:
 
     def refine_with_context(self, image: Image.Image, candidate: str) -> tuple[str, dict]:
         """Run a constrained second vision pass using detected domain context."""
+        if not settings.ENABLE_CONTEXT_ENGINE:
+            return candidate.strip(), {"domain": "general", "confidence": 0.0, "vocabulary": []}
         context = build_context(candidate)
         if context.get("domain") == "general" or context.get("confidence", 0.0) < 0.55:
             return candidate.strip(), context
