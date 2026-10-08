@@ -63,6 +63,7 @@ async def _run_ocr_on_page(page_id: int, user_id: int, visual_mode: bool = False
     from app.ocr import (
         detect_content_bounds, get_engine, get_gemini_engine, get_openai_engine,
         has_gemini, has_openai, preprocess_image, should_try_trocr_fallback,
+        detect_strike_through,
     )
     from app.routes.documents import _bake_rotation
     from app.routes.search import index_ocr_result
@@ -398,6 +399,7 @@ async def _run_ocr_on_page(page_id: int, user_id: int, visual_mode: bool = False
                     model_version=model_version,
                     ink_layer=label,
                     ink_metadata=metadata,
+                    struck_through=bool(getattr(segment, "struck_through", False)),
                 )
                 db.add(ocr_row)
                 await db.flush()
@@ -611,6 +613,7 @@ async def process_bbox(
 
     language_meta = build_ocr_language_annotation(text or "")
     translation_meta = identify_language_and_translate_to_english(text or "")
+    page_image = preprocess_image(page.image_path, rotation=0)
     ocr_row = OcrResult(
         page_id=page.id,
         bbox_x=body.bbox_x,
@@ -626,6 +629,10 @@ async def process_bbox(
         script=language_meta["script"],
         language_confidence=language_meta["confidence"],
         model_version=model_version,
+        struck_through=detect_strike_through(
+            page_image,
+            (body.bbox_x, body.bbox_y, body.bbox_w, body.bbox_h),
+        ),
     )
     db.add(ocr_row)
     await db.flush()
