@@ -835,7 +835,6 @@ class GeminiOcrEngine:
                 config=types.GenerateContentConfig(
                     temperature=0.0,
                     max_output_tokens=16,
-                    thinking_config=types.ThinkingConfig(thinking_budget=0),
                 ),
             )
             raw = (response.text or "").strip()
@@ -868,7 +867,6 @@ class GeminiOcrEngine:
                 config=types.GenerateContentConfig(
                     temperature=0.0,
                     max_output_tokens=256,
-                    thinking_config=types.ThinkingConfig(thinking_budget=0),
                 ),
             )
             raw = (response.text or "").strip()
