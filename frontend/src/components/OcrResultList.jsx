@@ -99,7 +99,10 @@ export default function OcrResultList({
                 </div>
               ) : (
                 <div className="flex-1">
-                  <p className="text-sm text-gray-800 leading-relaxed">
+                  <p
+                    className={"text-sm text-gray-800 leading-relaxed " + (result.struck_through ? "line-through decoration-2 decoration-gray-500" : "")}
+                    title={result.struck_through ? "Detected as struck through" : undefined}
+                  >
                     {result.text || <span className="italic text-gray-400">No text recognized</span>}
                   </p>
                   {result.translated_text && result.translated_text !== result.text && (
