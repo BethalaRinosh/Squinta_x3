@@ -1,7 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import Layout from './components/Layout';
-import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Upload from './pages/Upload';
 import DocumentView from './pages/DocumentView';
@@ -10,22 +9,20 @@ import Play from './pages/Play';
 import Model from './pages/Model';
 import Calibrate from './pages/Calibrate';
 
-function ProtectedRoute({ children }) {
-  const { isAuthenticated, loading } = useAuth();
+// Wait only for the local guest/Google session to initialize. Authentication
+// is no longer a prerequisite for opening the app.
+function AppRoute({ children }) {
+  const { loading } = useAuth();
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-sm text-gray-500">Loading...</p>
+          <p className="text-sm text-gray-500">Loading Squinta...</p>
         </div>
       </div>
     );
-  }
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
   }
 
   return <Layout>{children}</Layout>;
@@ -34,81 +31,16 @@ function ProtectedRoute({ children }) {
 export default function App() {
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
+      <Route path="/" element={<AppRoute><Dashboard /></AppRoute>} />
+      <Route path="/documents" element={<AppRoute><Dashboard /></AppRoute>} />
+      <Route path="/documents/upload" element={<AppRoute><Upload /></AppRoute>} />
+      <Route path="/documents/:id" element={<AppRoute><DocumentView /></AppRoute>} />
+      <Route path="/search" element={<AppRoute><Search /></AppRoute>} />
+      <Route path="/play" element={<AppRoute><Play /></AppRoute>} />
+      <Route path="/model" element={<AppRoute><Model /></AppRoute>} />
+      <Route path="/calibrate" element={<AppRoute><Calibrate /></AppRoute>} />
 
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/documents"
-        element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/documents/upload"
-        element={
-          <ProtectedRoute>
-            <Upload />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/documents/:id"
-        element={
-          <ProtectedRoute>
-            <DocumentView />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/search"
-        element={
-          <ProtectedRoute>
-            <Search />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/play"
-        element={
-          <ProtectedRoute>
-            <Play />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/model"
-        element={
-          <ProtectedRoute>
-            <Model />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/calibrate"
-        element={
-          <ProtectedRoute>
-            <Calibrate />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* Catch-all redirect */}
+      {/* Unknown URLs, including old /login bookmarks, go to the dashboard. */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
