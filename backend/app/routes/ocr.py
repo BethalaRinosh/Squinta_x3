@@ -508,6 +508,9 @@ async def process_page(
     page.processing_status = "processing"
     await db.flush()
 
+    # Persist the processing marker before scheduling the task so the
+    # background worker cannot be started twice by overlapping requests.
+    await db.commit()
     background_tasks.add_task(_run_ocr_on_page, page.id, current_user.id)
     return MessageResponse(message=f"OCR processing started for page {page.id}")
 
@@ -665,7 +668,9 @@ async def process_document(
         page.processing_status = "processing"
         background_tasks.add_task(_run_ocr_on_page, page.id, current_user.id)
 
-    await db.flush()
+    # Persist processing markers before the background tasks start. Without
+    # this commit, a second request can observe the old state and enqueue duplicates.
+    await db.commit()
 
     return MessageResponse(
         message=f"OCR processing started for {len(document.pages)} page(s) in document '{document.name}'"
