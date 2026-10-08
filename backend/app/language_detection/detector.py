@@ -21,29 +21,76 @@ from app.language_detection.registry import SCRIPT_LANGUAGE_PRIORS, get_language
 
 
 def translate_text(text: str, source_language: str, target_language: str) -> str:
-    """Translate text and raise a useful error if the provider fails."""
-    if not text or not text.strip():
-        return ""
+    """Translate text with caching and a Gemini fallback when Google throttles.
+
+    Google Translate's unofficial endpoint can rate-limit bursty UI requests.
+    Cache successful translations, then use the configured Gemini API as a
+    fallback rather than surfacing a raw provider error to the user.
+    """
+    from functools import lru_cache
+
+    clean_text = (text or "").strip()
     source_language = (source_language or "").strip().lower()
     target_language = (target_language or "").strip().lower()
+    if not clean_text:
+        return ""
     if not target_language or source_language == target_language:
-        return text.strip()
+        return clean_text
     if source_language in {"unknown", "mixed", "numeric"}:
-        raise ValueError(f"Cannot translate text with unsupported source language '{source_language}'.")
+        raise ValueError(
+            f"Cannot translate text with unsupported source language '{source_language}'."
+        )
     if source_language == "auto":
         source_language = "auto"
 
+    return _translate_cached(clean_text, source_language, target_language)
+
+
+@lru_cache(maxsize=512)
+def _translate_cached(text: str, source_language: str, target_language: str) -> str:
+    """Cache successful provider results to avoid duplicate translation calls."""
+    google_error = None
     try:
         from deep_translator import GoogleTranslator
         translated = GoogleTranslator(source=source_language, target=target_language).translate(text)
+        if translated and str(translated).strip():
+            return str(translated).strip()
+        google_error = "Google Translate returned an empty result."
     except Exception as exc:
-        raise RuntimeError(
-            f"Google Translate failed for source '{source_language}' and target '{target_language}': {exc}"
-        ) from exc
+        google_error = str(exc)
 
-    if not translated or not str(translated).strip():
-        raise RuntimeError("Google Translate returned an empty result.")
-    return str(translated).strip()
+    # GoogleTranslator is unofficial and frequently throttles burst requests.
+    # Fall back to Gemini only when an API key is configured.
+    try:
+        from app.config import settings
+        if settings.GEMINI_API_KEY:
+            from google import genai
+            client = genai.Client(api_key=settings.GEMINI_API_KEY)
+            from_language = source_language if source_language != "auto" else "the source language"
+            prompt = (
+                "Translate the text faithfully. Return only the translation, with no "
+                "quotes, explanation, or language label. Preserve names, numbers, and formatting.\n"
+                f"Source language: {from_language}\n"
+                f"Target language code: {target_language}\n"
+                f"Text:\n{text}"
+            )
+            response = client.models.generate_content(
+                model=settings.GEMINI_MODEL,
+                contents=prompt,
+            )
+            translated = (getattr(response, "text", None) or "").strip()
+            if translated:
+                return translated
+    except Exception as fallback_error:
+        raise RuntimeError(
+            "Google Translate is rate-limited and the Gemini fallback also failed. "
+            "Wait a little and retry."
+        ) from fallback_error
+
+    raise RuntimeError(
+        "Google Translate is temporarily rate-limited. "
+        "Configure GEMINI_API_KEY for automatic fallback, or wait a little and retry."
+    ) from (RuntimeError(google_error) if google_error else None)
 
 
 def translate_text_to_english(text: str, source_language: str, target_language: str = "en") -> str:
