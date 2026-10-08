@@ -23,8 +23,6 @@ A web application that converts handwritten documents to text using OCR, then le
 - **Model Export** -- Download your personalized LoRA weights
 - **Domain Context Engine** -- Detects likely medical, legal, finance, science, or education context from OCR candidates and runs a constrained Gemini verification pass using domain terminology, without inventing unsupported text.
 - **Context-aware translation** -- Uses explicit naming context (for example, “My company's name is FISH”) to protect company, brand, and product names across translation providers, while allowing ordinary words such as “fish” to translate normally when they are not identified as names.
-- **Context-aware translation** -- Uses explicit naming context (for example, “My company's name is FISH”) to protect company, brand, and product names across translation providers, while allowing ordinary words such as “fish” to translate normally when they are not identified as names.
-
 ## Quick Start
 
 ### Prerequisites
@@ -407,12 +405,6 @@ The current build includes a focused reliability pass covering frontend search h
 ### Context-aware translation name preservation
 
 Translation now detects names supported by context, including names that are ordinary words (such as **FISH** in “My company's name is FISH”). It replaces those names with temporary placeholders before translation and restores the exact original spelling afterward. This runs before the provider selection, so it applies to both Google Translate and the Gemini fallback. Ordinary uses such as “I like fish” are not frozen and continue through the existing translation path.
-
-The detection is intentionally conservative: it uses explicit naming phrases and common organization suffixes rather than protecting every capitalized word. Run `pytest backend/tests/test_contextual_translation.py` from the repository root to check the core behavior.
-
-### Context-aware translation name preservation
-
-Translation now detects names supported by context, including names that are ordinary words (such as **FISH** in “My company's name is FISH”). It replaces those names with temporary placeholders before translation and restores the exact original spelling afterward. This runs before provider selection, so it applies to both Google Translate and the Gemini fallback. Ordinary uses such as “I like fish” are not frozen and continue through the existing translation path.
 
 The detection is intentionally conservative: it uses explicit naming phrases and common organization suffixes rather than protecting every capitalized word. Run `pytest backend/tests/test_contextual_translation.py` from the repository root to check the core behavior.
 
