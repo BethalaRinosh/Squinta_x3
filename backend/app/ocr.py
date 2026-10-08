@@ -881,7 +881,7 @@ class GeminiOcrEngine:
         )
         logger.info("Gemini OCR engine initialized (%s)", self.model_name)
 
-    def _call(self, prompt: str, image: Image.Image, max_tokens: int = 8192, temperature: float = 0.0) -> str:
+    def _call(self, prompt: str, image: Image.Image | None, max_tokens: int = 8192, temperature: float = 0.0) -> str:
         """Send a prompt + image to Gemini and return the text response."""
         import time as _time
         from google.genai import types
@@ -891,7 +891,7 @@ class GeminiOcrEngine:
             try:
                 response = self.client.models.generate_content(
                     model=self.model_name,
-                    contents=[prompt, image],
+                    contents=[prompt] if image is None else [prompt, image],
                     config=types.GenerateContentConfig(
                         temperature=temperature,
                         max_output_tokens=max_tokens,
@@ -910,6 +910,10 @@ class GeminiOcrEngine:
                 if attempt < 1:
                     _time.sleep(1)
         raise last_exc
+
+    def generate_text(self, prompt: str, max_tokens: int = 1024, temperature: float = 0.2) -> str:
+        """Generate text with the configured Gemini model without an image."""
+        return self._call(prompt, image=None, max_tokens=max_tokens, temperature=temperature)
 
     def refine_with_context(self, image: Image.Image, candidate: str) -> tuple[str, dict]:
         """Run a constrained second vision pass using detected domain context."""
