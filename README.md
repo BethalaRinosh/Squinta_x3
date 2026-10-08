@@ -2,6 +2,10 @@
 
 A web application that converts handwritten documents to text using OCR, then learns your handwriting over time through corrections. Upload or photograph handwritten pages (or import from Google Photos), get instant transcriptions via Gemini Flash or TrOCR, and correct mistakes through a gamified "Play" mode. Corrections feed back into per-user LoRA fine-tuning, improving accuracy over time.
 
+## Guest mode (default)
+
+Squinta opens directly to the dashboard with a browser-scoped guest session. Google sign-in is **not required** for local uploads, OCR, editing, search, summaries, translation, corrections, or model tools. Guest data stays associated with that browser profile. Use **Connect Google** only when you want to import from Google Photos; you can switch back to Guest Mode from the top bar.
+
 ## Features
 
 - **Dual OCR Engine** -- Gemini 2.5 Flash API (primary, high-quality) with TrOCR local fallback
@@ -29,7 +33,7 @@ A web application that converts handwritten documents to text using OCR, then le
 
 - Python 3.10+
 - Node.js 18+
-- A Google Cloud project with OAuth 2.0 credentials
+- (Optional) A Google Cloud project with OAuth 2.0 credentials for Google Photos import
 - (Optional) A [Gemini API key](https://aistudio.google.com/apikey) for high-quality OCR
 
 ### Setup
@@ -41,7 +45,7 @@ cd Squinta_x3
 
 # Configure
 cp .env.example .env
-# Edit .env with your Google OAuth credentials and (optional) Gemini API key
+# Optionally configure Google OAuth for Google Photos and a Gemini API key for high-quality OCR
 
 # Backend
 cd backend
@@ -333,6 +337,12 @@ MIT
 
 - Fixed FastAPI route parameter-ordering errors in the upload and model-training endpoints so the backend can import successfully under Python 3.11.
 
+
+### Authentication and guest mode
+
+- Squinta now opens directly to the dashboard using a persistent, browser-scoped guest session. Google OAuth is optional and is only needed for Google Photos import.
+- The backend issues a standard signed session token for the guest identity, so document ownership checks and per-user data isolation remain in place.
+- Google OAuth browser navigation can still target the configured backend origin directly when connecting Google for Photos.
 
 ### Authentication reliability
 
