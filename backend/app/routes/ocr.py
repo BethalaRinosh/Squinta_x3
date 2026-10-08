@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 from app.auth import get_current_user
 from app.config import settings
 from app.database import get_db
-from app.language_detection import build_ocr_language_annotation, identify_language_and_translate_to_english
+from app.language_detection import build_ocr_language_annotation
 from app.models import Document, OcrResult, Page, User, UserModel, VisualElement
 from app.schemas import MessageResponse, OcrResultOut
 
@@ -381,8 +381,6 @@ async def _run_ocr_on_page(page_id: int, user_id: int, visual_mode: bool = False
                 label = matched_region.label if matched_region else "MAIN_INK"
                 metadata = json.dumps(matched_region.to_dict(), ensure_ascii=False) if matched_region else None
                 language_meta = build_ocr_language_annotation(segment.text)
-                translation_meta = identify_language_and_translate_to_english(segment.text)
-
                 ocr_row = OcrResult(
                     page_id=page.id,
                     bbox_x=bbox_x,
@@ -391,8 +389,8 @@ async def _run_ocr_on_page(page_id: int, user_id: int, visual_mode: bool = False
                     bbox_h=bbox_h,
                     text=segment.text,
                     confidence=segment.confidence,
-                    translated_text=translation_meta.get("translated_text") or segment.text,
-                    translation_applied=bool(translation_meta.get("translation_applied")),
+                    translated_text=segment.text,
+                    translation_applied=False,
                     language=language_meta["language"],
                     language_name=language_meta["language_name"],
                     script=language_meta["script"],
@@ -621,8 +619,8 @@ async def process_bbox(
         bbox_h=body.bbox_h,
         text=text or "",
         confidence=confidence,
-        translated_text=translation_meta.get("translated_text") or (text or ""),
-        translation_applied=bool(translation_meta.get("translation_applied")),
+        translated_text=text or "",
+        translation_applied=False,
         language=language_meta["language"],
         language_name=language_meta["language_name"],
         script=language_meta["script"],
