@@ -103,8 +103,9 @@ async def callback(request: Request, db: AsyncSession = Depends(get_db)) -> Redi
         token_data = await oauth.google.authorize_access_token(request)
     except Exception:
         logger.exception("authorize_access_token failed")
-        # Redirect back to login instead of returning a 500
-        return RedirectResponse(url=f"{settings.FRONTEND_URL}/login?error=auth_failed")
+        # OAuth is optional now: return to the dashboard rather than a removed
+        # login page. The user can keep using guest mode if connection fails.
+        return RedirectResponse(url=f"{settings.FRONTEND_URL}/?google_auth_error=1")
 
     # The id_token is already verified by authlib; extract user info.
     userinfo: dict = token_data.get("userinfo", {})
