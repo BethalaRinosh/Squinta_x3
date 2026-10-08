@@ -268,7 +268,6 @@ export default function PageViewer({
                 '#2563eb';
 
               const common = {
-                key: `visual-${element.id}`,
                 stroke,
                 strokeWidth: Math.max(2, Math.min(5, Math.max(imgDimensions.naturalWidth, imgDimensions.naturalHeight) / 900)),
                 fill: 'none',
