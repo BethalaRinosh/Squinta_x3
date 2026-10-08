@@ -43,7 +43,7 @@ const navLinks = [
 ];
 
 export default function Layout({ children }) {
-  const { user, logout } = useAuth();
+  const { user, login, logout } = useAuth();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -90,14 +90,14 @@ export default function Layout({ children }) {
                   {user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
                 </div>
                 <span className="hidden lg:inline max-w-[120px] truncate">
-                  {user?.name || user?.email || 'User'}
+                  {user?.isGuest ? 'Guest mode' : (user?.name || user?.email || 'User')}
                 </span>
               </div>
               <button
-                onClick={logout}
+                onClick={user?.isGuest ? login : logout}
                 className="hidden sm:block text-sm text-gray-500 hover:text-gray-800 transition-colors"
               >
-                Log out
+                {user?.isGuest ? 'Connect Google' : 'Use Guest Mode'}
               </button>
 
               {/* Mobile menu button */}
@@ -144,18 +144,18 @@ export default function Layout({ children }) {
               <div className="border-t border-gray-100 pt-2 mt-2">
                 <div className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600">
                   <div className="w-7 h-7 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-xs font-bold">
-                    {user?.name?.[0]?.toUpperCase() || 'U'}
+                    {user?.isGuest ? 'G' : (user?.name?.[0]?.toUpperCase() || 'U')}
                   </div>
-                  <span>{user?.name || user?.email || 'User'}</span>
+                  <span>{user?.isGuest ? 'Guest mode' : (user?.name || user?.email || 'User')}</span>
                 </div>
                 <button
                   onClick={() => {
                     setMobileMenuOpen(false);
-                    logout();
+                    (user?.isGuest ? login : logout)();
                   }}
-                  className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
                 >
-                  Log out
+                  {user?.isGuest ? 'Connect Google' : 'Use Guest Mode'}
                 </button>
               </div>
             </nav>

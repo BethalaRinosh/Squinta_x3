@@ -16,20 +16,9 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor for 401 handling
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      // Only redirect if not already on login page
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
-      }
-    }
-    return Promise.reject(error);
-  }
-);
+// Do not redirect to a login page on API errors. Guest sessions are
+// authorized like any other local session, and optional integrations (such as
+// Google Photos) may return 401 without invalidating the user's Squinta session.
 
 // ---- Auth ----
 
@@ -39,6 +28,11 @@ export function login() {
   // OAuth is a browser navigation, so bypass the Vite /api proxy.
   // This guarantees the request reaches FastAPI directly during local development.
   window.location.assign(`${BACKEND_ORIGIN}/auth/login`);
+}
+
+export async function createGuestSession(guestId) {
+  const { data } = await api.post('/auth/guest', { guest_id: guestId });
+  return data;
 }
 
 export async function getMe() {

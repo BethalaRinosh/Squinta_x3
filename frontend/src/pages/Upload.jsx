@@ -70,7 +70,11 @@ function GooglePhotosPicker({ onImport }) {
       setTimeout(poll, 2000);
     } catch (err) {
       if (pickerWindow) pickerWindow.close();
-      toast.error('Failed to open Google Photos picker. Try signing out and back in.');
+      if (err.response?.status === 401) {
+        toast.error('Google Photos needs a connected Google account. Use “Connect Google” in the top bar, then try again.');
+      } else {
+        toast.error('Failed to open Google Photos picker. Please try again.');
+      }
       setStatus('idle');
     }
   };

@@ -1,10 +1,14 @@
 """Authentication routes -- Google OAuth2 login / callback / me / logout."""
 
 import logging
+from uuid import UUID
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -21,6 +25,61 @@ from app.models import User
 from app.schemas import MessageResponse, UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+class GuestSessionRequest(BaseModel):
+    guest_id: str = Field(..., min_length=36, max_length=36)
+
+
+@router.post("/guest")
+async def create_guest_session(
+    body: GuestSessionRequest,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Create or resume a browser-scoped guest account.
+
+    The guest UUID is generated and persisted by the frontend. It lets ordinary
+    OCR features use the same database ownership checks as Google accounts,
+    without requiring OAuth or exposing other users' documents.
+    """
+    try:
+        guest_id = str(UUID(body.guest_id))
+    except (ValueError, AttributeError) as exc:
+        raise HTTPException(status_code=400, detail="Invalid guest session ID") from exc
+
+    google_id = f"guest:{guest_id}"
+    email = f"guest-{guest_id}@guest.squinta.local"
+    result = await db.execute(select(User).where(User.google_id == google_id))
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        user = User(google_id=google_id, email=email, name="Guest")
+        db.add(user)
+        try:
+            await db.commit()
+        except IntegrityError:
+            # Two tabs can initialize the same guest at once. If the other
+            # request won the unique-key race, reuse that row.
+            await db.rollback()
+            result = await db.execute(select(User).where(User.google_id == google_id))
+            user = result.scalar_one_or_none()
+            if user is None:
+                raise
+    # Flush is unnecessary for an existing row, but commit here is harmless
+    # and ensures any incidental session state is closed before returning.
+    else:
+        await db.commit()
+
+    token = create_access_token(data={"sub": str(user.id)})
+    return {
+        "token": token,
+        "user": {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "is_guest": True,
+        },
+    }
 
 
 @router.get("/login")
@@ -46,8 +105,9 @@ async def callback(request: Request, db: AsyncSession = Depends(get_db)) -> Redi
         token_data = await oauth.google.authorize_access_token(request)
     except Exception:
         logger.exception("authorize_access_token failed")
-        # Redirect back to login instead of returning a 500
-        return RedirectResponse(url=f"{settings.FRONTEND_URL}/login?error=auth_failed")
+        # OAuth is optional now: return to the dashboard rather than a removed
+        # login page. The user can keep using guest mode if connection fails.
+        return RedirectResponse(url=f"{settings.FRONTEND_URL}/?google_auth_error=1")
 
     # The id_token is already verified by authlib; extract user info.
     userinfo: dict = token_data.get("userinfo", {})
