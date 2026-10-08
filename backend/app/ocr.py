@@ -809,14 +809,20 @@ class GeminiOcrEngine:
 
     def __init__(self) -> None:
         from google import genai
+        from google.genai import types
 
-        self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        # Keep OCR requests bounded. A hung Gemini request must not leave a
+        # page stuck in "processing" forever.
+        self.client = genai.Client(
+            api_key=settings.GEMINI_API_KEY,
+            http_options=types.HttpOptions(timeout=60000),
+        )
         # Use a model currently available to new Gemini API keys; 2.5 flash
         # variants are no longer available for new users.
         self.model_name = "gemini-3.5-flash-lite"
         logger.info("Gemini OCR engine initialized (%s)", self.model_name)
 
-    def _call(self, prompt: str, image: Image.Image, max_tokens: int = 65536, temperature: float = 0.0) -> str:
+    def _call(self, prompt: str, image: Image.Image, max_tokens: int = 8192, temperature: float = 0.0) -> str:
         """Send a prompt + image to Gemini and return the text response."""
         import time as _time
         from google.genai import types
@@ -830,6 +836,7 @@ class GeminiOcrEngine:
                     config=types.GenerateContentConfig(
                         temperature=temperature,
                         max_output_tokens=max_tokens,
+                        response_mime_type="application/json",
                     ),
                 )
                 text = response.text
@@ -891,6 +898,7 @@ class GeminiOcrEngine:
                 config=types.GenerateContentConfig(
                     temperature=0.0,
                     max_output_tokens=256,
+                    response_mime_type="application/json",
                 ),
             )
             raw = (response.text or "").strip()
@@ -989,7 +997,7 @@ class GeminiOcrEngine:
             )
         except Exception:
             logger.exception("Gemini OCR API call failed for %s", image_path)
-            return GeminiOcrResult(rotation=0, segments=[])
+            return GeminiOcrResult(rotation=0, segments=[], visual_elements=[])
 
         if not raw_text or raw_text.strip() == "[]":
             return GeminiOcrResult(rotation=0, segments=[])
@@ -1058,7 +1066,7 @@ class GeminiOcrEngine:
             "Gemini OCR: %d text lines → %d segments for %s",
             len(text_lines), len(segments), image_path,
         )
-        return GeminiOcrResult(rotation=0, segments=segments)
+        return GeminiOcrResult(rotation=0, segments=segments, visual_elements=visual_elements)
 
     def _build_direct_segments(
         self,
