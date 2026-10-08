@@ -351,3 +351,16 @@ Fixed malformed escaped template literals in the Formatted/Results OCR view togg
 
 ### 2D formatted document reconstruction
 The Formatted OCR view now reconstructs the page in 2D instead of flattening OCR into a text block. OCR text uses its original pixel bounding boxes, while detected arrows, table outlines/grid lines, boxes, circles, connectors, brackets, and underlines are rendered from their stored geometry. This keeps the formatted output spatially faithful to the source page.
+
+
+## OCR image safety
+
+Gemini OCR now keeps the original uploaded image unchanged by default. Automatic rotation, perspective page warping, and deskewing are disabled because a bad vision-model geometry/orientation guess can make the displayed image appear sideways or stretched and can cause OCR to lose the handwriting.
+
+The controls are available as explicit backend environment flags for controlled testing:
+
+- `GEMINI_AUTO_ROTATE=false`
+- `GEMINI_PAGE_WARP=false`
+- `GEMINI_DESKEW=false`
+
+Gemini OCR bounding boxes are therefore generated against the same pixel space that the browser displays. The JSON parser also accepts common structured-response wrappers such as `results`, `items`, and `detections` instead of silently dropping a valid response.
