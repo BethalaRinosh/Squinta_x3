@@ -42,7 +42,16 @@ def translate_text(text: str, source_language: str, target_language: str) -> str
     if source_language == "auto":
         source_language = "auto"
 
-    return _translate_cached(clean_text, source_language, target_language)
+    # Preserve names that context explicitly identifies as entities before either
+    # Google Translate or the Gemini fallback can interpret them as ordinary words.
+    from app.language_detection.contextual_translation import translate_with_context
+
+    return translate_with_context(
+        clean_text,
+        source_language,
+        target_language,
+        _translate_cached,
+    )
 
 
 @lru_cache(maxsize=512)
