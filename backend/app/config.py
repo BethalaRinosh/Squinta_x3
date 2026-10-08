@@ -41,6 +41,14 @@ class Settings(BaseSettings):
     # model availability can change independently of the application code.
     GEMINI_MODEL: str = "gemini-3.5-flash-lite"
 
+    # Conservative image preprocessing for Gemini OCR. Gemini is already
+    # rotation-aware, and mutating the stored upload can make the UI display
+    # a rotated or stretched image when a vision model misreads the page.
+    # Keep these off by default; they can be enabled explicitly for testing.
+    GEMINI_AUTO_ROTATE: bool = False
+    GEMINI_PAGE_WARP: bool = False
+    GEMINI_DESKEW: bool = False
+
     # Optional OpenAI OCR provider (Responses API; useful for handwritten text).
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-5.6"
