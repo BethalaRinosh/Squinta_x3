@@ -784,7 +784,7 @@ class OpenAIOcrEngine:
             raw_text = self._call(OPENAI_OCR_PROMPT, image)
         except Exception:
             logger.exception("OpenAI OCR API call failed for %s", image_path)
-            return GeminiOcrResult(rotation=0, segments=[])
+            return GeminiOcrResult(rotation=0, segments=[], visual_elements=[])
 
         lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
         if not lines:
@@ -801,7 +801,7 @@ class OpenAIOcrEngine:
                     bbox=(0, idx * spacing, width, spacing),
                 )
             )
-        return GeminiOcrResult(rotation=0, segments=segments)
+        return GeminiOcrResult(rotation=0, segments=segments, visual_elements=visual_elements)
 
 
 class GeminiOcrEngine:
@@ -994,21 +994,42 @@ class GeminiOcrEngine:
         if not raw_text or raw_text.strip() == "[]":
             return GeminiOcrResult(rotation=0, segments=[])
 
-        # Extract text lines from Gemini response.
-        # Gemini sometimes uses "text_content" instead of "text",
-        # or "box_2d" instead of "box".  Normalise before proceeding.
+        # Extract text lines and visual structures from Gemini response.
         entries = self._parse_gemini_json(raw_text)
+        visual_elements: list[VisualElement] = []
         if entries is not None:
-            # Normalise field names and filter to entries with text.
             clean_entries: list[dict] = []
             text_lines: list[str] = []
+            import json as _json
             for e in entries:
                 if not isinstance(e, dict):
+                    continue
+                item_type = str(e.get("type") or "text").strip().lower()
+                box = e.get("box") or e.get("box_2d")
+                if item_type == "visual":
+                    if not isinstance(box, list) or len(box) != 4:
+                        continue
+                    try:
+                        y1, x1, y2, x2 = [float(v) for v in box]
+                        px1 = max(0, int(x1 / 1000.0 * img_width))
+                        py1 = max(0, int(y1 / 1000.0 * img_height))
+                        px2 = min(img_width, int(x2 / 1000.0 * img_width))
+                        py2 = min(img_height, int(y2 / 1000.0 * img_height))
+                        visual_elements.append(
+                            VisualElement(
+                                element_type=str(e.get("element_type") or "diagram").lower(),
+                                confidence=max(0.0, min(1.0, float(e.get("confidence", 0.9)))),
+                                bbox=(px1, py1, max(1, px2 - px1), max(1, py2 - py1)),
+                                label=e.get("label"),
+                                geometry=_json.dumps(e.get("geometry"), ensure_ascii=False) if e.get("geometry") is not None else None,
+                            )
+                        )
+                    except (TypeError, ValueError):
+                        logger.warning("Skipping malformed visual element: %r", e)
                     continue
                 t = (e.get("text") or e.get("text_content") or "").strip()
                 if not t:
                     continue
-                box = e.get("box") or e.get("box_2d")
                 clean_entries.append({"text": t, "box": box})
                 text_lines.append(t)
             entries = clean_entries
