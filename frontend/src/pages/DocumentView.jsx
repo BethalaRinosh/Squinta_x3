@@ -729,15 +729,20 @@ export default function DocumentView() {
                 <h2 className="text-sm font-semibold text-gray-700">OCR Results</h2>
                 {results.length > 0 && (
                   <div className="flex items-center gap-2">
-                    <label className="flex items-center gap-1.5 text-[11px] text-gray-500" title="Hide OCR results detected as struck through">
-                      <input
-                        type="checkbox"
-                        checked={removeStrikeOffs}
-                        onChange={(e) => setRemoveStrikeOffs(e.target.checked)}
-                        className="h-3.5 w-3.5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                      />
-                      <span>Remove strike-offs</span>
-                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setRemoveStrikeOffs((enabled) => !enabled)}
+                      aria-pressed={removeStrikeOffs}
+                      title="Toggle whether detected struck-through text is hidden"
+                      className={"inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-medium transition-colors " + (
+                        removeStrikeOffs
+                          ? "border-primary-300 bg-primary-50 text-primary-700"
+                          : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                      )}
+                    >
+                      <span aria-hidden="true">{removeStrikeOffs ? "✓" : "↗"}</span>
+                      {removeStrikeOffs ? "Strike-offs hidden" : "Remove strike-offs"}
+                    </button>
                     <label className="flex items-center gap-1 text-[11px] text-gray-400" title="Speech speed">
                       <span>Speed</span>
                       <select
