@@ -190,7 +190,10 @@ async def upload_document(
     from app.routes.ocr import _run_ocr_on_page
     re_stmt = (
         select(Document)
-        .options(selectinload(Document.pages).selectinload(Page.ocr_results))
+        .options(
+            selectinload(Document.pages).selectinload(Page.ocr_results),
+            selectinload(Document.pages).selectinload(Page.visual_elements),
+        )
         .where(Document.id == document.id)
     )
     re_result = await db.execute(re_stmt)
@@ -289,6 +292,7 @@ async def get_document(
         select(Document)
         .options(
             selectinload(Document.pages).selectinload(Page.ocr_results),
+            selectinload(Document.pages).selectinload(Page.visual_elements),
         )
         .where(Document.id == document_id, Document.user_id == current_user.id)
     )
