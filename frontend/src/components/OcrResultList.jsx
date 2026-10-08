@@ -8,9 +8,12 @@ export default function OcrResultList({
   onCorrect,
   onSpeak,
   speakingResultId,
+  onTranslate,
+  translatingResultId,
 }) {
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState('');
+  const [targetLanguage, setTargetLanguage] = useState({});
 
   const startEditing = useCallback((result) => {
     setEditingId(result.id);
@@ -104,6 +107,40 @@ export default function OcrResultList({
                       <span className="font-medium mr-1">English:</span>
                       {result.translated_text}
                     </p>
+                  )}
+                  {result.text && result.language && !['en', 'unknown', 'mixed', 'numeric'].includes(result.language) && (
+                    <div className="mt-2 flex items-center gap-1.5">
+                      <select
+                        value={targetLanguage[result.id] || 'en'}
+                        onChange={(e) => setTargetLanguage(prev => ({ ...prev, [result.id]: e.target.value }))}
+                        onClick={(e) => e.stopPropagation()}
+                        className="rounded border border-gray-200 bg-white px-1.5 py-1 text-[11px] text-gray-600 outline-none"
+                        aria-label="Translation target language"
+                      >
+                        <option value="en">English</option>
+                        <option value="hi">Hindi</option>
+                        <option value="ta">Tamil</option>
+                        <option value="te">Telugu</option>
+                        <option value="ml">Malayalam</option>
+                        <option value="kn">Kannada</option>
+                        <option value="bn">Bengali</option>
+                        <option value="gu">Gujarati</option>
+                        <option value="mr">Marathi</option>
+                        <option value="pa">Punjabi</option>
+                        <option value="ur">Urdu</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onTranslate?.(result, targetLanguage[result.id] || 'en');
+                        }}
+                        disabled={translatingResultId === result.id}
+                        className="rounded-md bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-600 hover:bg-gray-200 disabled:opacity-50"
+                      >
+                        {translatingResultId === result.id ? 'Translating...' : 'Translate'}
+                      </button>
+                    </div>
                   )}
                   {(result.language_name || result.language || result.script) && (
                     <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-gray-500">
