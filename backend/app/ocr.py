@@ -396,6 +396,24 @@ class OcrEngine:
             logger.exception("Gemini context refinement failed")
         return candidate.strip(), context
 
+    def refine_with_context(self, image: Image.Image, candidate: str) -> tuple[str, dict]:
+        """Run a constrained second vision pass using detected domain context."""
+        context = build_context(candidate)
+        if context.get("domain") == "general" or context.get("confidence", 0.0) < 0.55:
+            return candidate.strip(), context
+
+        prompt = GEMINI_CONTEXT_CORRECTION_PROMPT.format(
+            candidate=candidate.strip(),
+            context=build_context_prompt(candidate, context),
+        )
+        try:
+            refined = self._call(prompt, image, max_tokens=4096, temperature=0.0)
+            if refined and refined.strip() and refined.strip().upper() != "EMPTY":
+                return refined.strip(), context
+        except Exception:
+            logger.exception("Gemini context refinement failed")
+        return candidate.strip(), context
+
     def process_page(
         self,
         image_path: str | Path,
@@ -778,7 +796,7 @@ CANDIDATE OCR:
 {context}
 """
 
-GEMINI_SINGLE_PROMPT = """You are an expert handwriting OCR system. This image shows a cropped region of handwritten text.
+GEMINI_CONTEXT_CORRECTION_PROMPT = """You are a handwriting OCR verification engine.\n\nThe image contains handwritten text. A first OCR pass produced the candidate text below.\nUse the image as the ONLY source of truth and return the corrected candidate text.\n\nRules:\n- Keep every word, number, symbol, unit, abbreviation and punctuation that is visibly supported.\n- You may correct a visually ambiguous token when the domain context makes the candidate materially more likely.\n- Never invent text merely because it is common in the detected domain.\n- Preserve uncertainty with [UNCERTAIN] when the image does not support a reliable reading.\n- Return ONLY the corrected transcription, no explanation.\n\nCANDIDATE OCR:\n{candidate}\n\n{context}\n"""\n\n\nGEMINI_SINGLE_PROMPT = """You are an expert handwriting OCR system. This image shows a cropped region of handwritten text.
 
 Transcribe ALL the handwritten text in this image precisely.
 Capture every word, punctuation mark, and number.
