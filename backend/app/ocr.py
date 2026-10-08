@@ -815,7 +815,7 @@ class GeminiOcrEngine:
         # page stuck in "processing" forever.
         self.client = genai.Client(
             api_key=settings.GEMINI_API_KEY,
-            http_options=types.HttpOptions(timeout=60000),
+            http_options=types.HttpOptions(timeout=30000),
         )
         # Use a model currently available to new Gemini API keys; 2.5 flash
         # variants are no longer available for new users.
@@ -828,7 +828,7 @@ class GeminiOcrEngine:
         from google.genai import types
 
         last_exc = None
-        for attempt in range(3):
+        for attempt in range(2):
             try:
                 response = self.client.models.generate_content(
                     model=self.model_name,
@@ -847,9 +847,9 @@ class GeminiOcrEngine:
                 return text.strip()
             except Exception as e:
                 last_exc = e
-                logger.warning("Gemini API attempt %d/3 failed: %s", attempt + 1, e)
-                if attempt < 2:
-                    _time.sleep(2 ** attempt)
+                logger.warning("Gemini API attempt %d/2 failed: %s", attempt + 1, e)
+                if attempt < 1:
+                    _time.sleep(1)
         raise last_exc
 
     def detect_rotation(self, image: Image.Image) -> int:
@@ -866,6 +866,7 @@ class GeminiOcrEngine:
                 config=types.GenerateContentConfig(
                     temperature=0.0,
                     max_output_tokens=16,
+                    http_options={"timeout": 15000},
                 ),
             )
             raw = (response.text or "").strip()
@@ -899,6 +900,7 @@ class GeminiOcrEngine:
                     temperature=0.0,
                     max_output_tokens=256,
                     response_mime_type="application/json",
+                    http_options={"timeout": 15000},
                 ),
             )
             raw = (response.text or "").strip()
@@ -1000,7 +1002,7 @@ class GeminiOcrEngine:
             return GeminiOcrResult(rotation=0, segments=[], visual_elements=[])
 
         if not raw_text or raw_text.strip() == "[]":
-            return GeminiOcrResult(rotation=0, segments=[])
+            return GeminiOcrResult(rotation=0, segments=[], visual_elements=[])
 
         # Extract text lines and visual structures from Gemini response.
         entries = self._parse_gemini_json(raw_text)
@@ -1051,7 +1053,7 @@ class GeminiOcrEngine:
             text_lines = [l.strip() for l in raw_text.split("\n") if l.strip()]
 
         if not text_lines:
-            return GeminiOcrResult(rotation=0, segments=[])
+            return GeminiOcrResult(rotation=0, segments=[], visual_elements=[])
 
         # ── Step 2: Use Gemini's bounding boxes with spacing correction ─
         # Gemini's x-coordinates are accurate but y-spacing drifts on
