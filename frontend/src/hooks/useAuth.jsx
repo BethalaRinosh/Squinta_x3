@@ -46,15 +46,13 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Keep the callback token in the hook's state initializer so it is read
-  // synchronously before React Router can replace the URL.
-  void initialToken;
-
   useEffect(() => {
     let cancelled = false;
 
     async function restoreSession() {
       try {
+        // The callback token is already stored by initialToken's initializer.
+        void initialToken;
         const token = localStorage.getItem('token');
         if (token) {
           try {
