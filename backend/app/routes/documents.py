@@ -459,7 +459,10 @@ async def set_page_crop(
     stmt = (
         select(Page)
         .join(Document, Page.document_id == Document.id)
-        .options(selectinload(Page.ocr_results))
+        .options(
+            selectinload(Page.ocr_results),
+            selectinload(Page.visual_elements),
+        )
         .where(Page.id == page_id, Document.user_id == current_user.id)
     )
     result = await db.execute(stmt)
@@ -485,7 +488,10 @@ async def clear_page_crop(
     stmt = (
         select(Page)
         .join(Document, Page.document_id == Document.id)
-        .options(selectinload(Page.ocr_results))
+        .options(
+            selectinload(Page.ocr_results),
+            selectinload(Page.visual_elements),
+        )
         .where(Page.id == page_id, Document.user_id == current_user.id)
     )
     result = await db.execute(stmt)
@@ -513,7 +519,10 @@ async def auto_crop_page(
     stmt = (
         select(Page)
         .join(Document, Page.document_id == Document.id)
-        .options(selectinload(Page.ocr_results))
+        .options(
+            selectinload(Page.ocr_results),
+            selectinload(Page.visual_elements),
+        )
         .where(Page.id == page_id, Document.user_id == current_user.id)
     )
     result = await db.execute(stmt)
