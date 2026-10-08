@@ -400,3 +400,10 @@ The current build includes a focused reliability pass covering frontend search h
 - Strike-off detection now checks approximate word-level boxes when the OCR engine returns a whole line as one box, so hiding a crossed-out word can preserve the surrounding words.
 - The OCR Results header controls wrap on narrow panels instead of overflowing or clipping.
 - Re-process the page after pulling this update so stored OCR results include the improved word-level strike-off metadata.
+
+
+### Translation rate-limit resilience
+
+- Successful translations are cached to avoid duplicate requests for the same text and language pair.
+- If the unofficial Google Translate endpoint rate-limits a request, Squinta falls back to the configured Gemini model when `GEMINI_API_KEY` is available.
+- Without a Gemini API key, the UI receives a clear temporary rate-limit message instead of a long raw provider error. Restart the backend after pulling this change.
