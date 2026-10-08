@@ -25,12 +25,12 @@ Pillow==11.1.0
 pillow-heif==0.21.0
 accelerate==1.2.1
 opencv-python-headless>=4.8.0
-google-genai>=1.0.0
+google-genai>=1.20.0
 openai>=1.0.0
 
 # Google Photos
 google-api-python-client==2.159.0
-google-auth==2.37.0
+google-auth>=2.56.0,<3.0.0
 
 # Search
 whoosh==2.7.4
