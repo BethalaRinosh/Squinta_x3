@@ -65,6 +65,8 @@ async def create_guest_session(
             user = result.scalar_one_or_none()
             if user is None:
                 raise
+    # Flush is unnecessary for an existing row, but commit here is harmless
+    # and ensures any incidental session state is closed before returning.
     else:
         await db.commit()
 
