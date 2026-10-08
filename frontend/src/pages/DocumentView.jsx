@@ -621,6 +621,7 @@ export default function DocumentView() {
                   <StructuredOcrView
                     results={results}
                     visualElements={currentPage?.visual_elements || []}
+                    imageSrc={currentPage.image_url || currentPage.url}
                     onSelectResult={setSelectedResultId}
                     selectedResultId={selectedResultId}
                   />
