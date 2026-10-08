@@ -866,7 +866,6 @@ class GeminiOcrEngine:
                 config=types.GenerateContentConfig(
                     temperature=0.0,
                     max_output_tokens=16,
-                    http_options={"timeout": 15000},
                 ),
             )
             raw = (response.text or "").strip()
@@ -900,7 +899,6 @@ class GeminiOcrEngine:
                     temperature=0.0,
                     max_output_tokens=256,
                     response_mime_type="application/json",
-                    http_options={"timeout": 15000},
                 ),
             )
             raw = (response.text or "").strip()
