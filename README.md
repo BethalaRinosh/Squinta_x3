@@ -6,7 +6,7 @@ A web application that converts handwritten documents to text using OCR, then le
 
 - **Dual OCR Engine** -- Gemini 2.5 Flash API (primary, high-quality) with TrOCR local fallback
 - **Auto-rotation** -- Detects and corrects image orientation (Gemini: single-prompt detection; TrOCR: tries all 4 orientations)
-- **Perspective Warp** -- Detects notebook page corners in camera photos and applies perspective transform to remove desk/background, producing a clean rectangular page image
+- **Perspective Warp** -- Optional page-corner perspective correction. Disabled by default because OCR can read moderately skewed camera photos directly and uncertain geometry must never distort the source image
 - **Deskew** -- Straightens small text skew via Hough line detection so bounding boxes align with horizontal text
 - **Ink-Aware Bbox Alignment** -- Detects actual ink line positions using Otsu binarization + horizontal projection, then snaps Gemini's bounding boxes to real text positions (corrects spacing drift on long pages)
 - **Auto-crop** -- Detects content bounds to focus OCR on the writing area
