@@ -30,7 +30,7 @@ export default function Login() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Squinti</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Squinta</h1>
           <p className="text-gray-500 leading-relaxed">
             Turn handwritten pages into searchable, editable text.
             Upload documents, correct the AI's readings, and train a model that learns your handwriting.
