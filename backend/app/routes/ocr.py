@@ -59,6 +59,7 @@ async def _run_ocr_on_page(page_id: int, user_id: int, visual_mode: bool = False
     import logging
 
     from app.database import async_session  # local import to avoid circulars
+    from app.config import settings
     from app.ink_layers import InkLayerAnalyzer
     from app.ocr import (
         detect_content_bounds, get_engine, get_gemini_engine, get_openai_engine,
@@ -154,10 +155,9 @@ async def _run_ocr_on_page(page_id: int, user_id: int, visual_mode: bool = False
                         page.rotation = detected_rot  # flag: already rotated
                         await db.flush()
 
-                # Perspective warp: detect page corners and crop to
-                # just the notebook page (removes desk, solar panels,
-                # hands, etc.).  Only runs once per page.
-                if not page.page_warped:
+                # Perspective warp can badly distort a camera frame when
+                # the page-corner detector is uncertain, so it is opt-in.
+                if settings.ENABLE_PERSPECTIVE_WARP and not page.page_warped:
                     from app.ocr import perspective_warp_page as _warp
                     warp_img = await asyncio.to_thread(
                         _pi, page.image_path, 0,
@@ -181,12 +181,13 @@ async def _run_ocr_on_page(page_id: int, user_id: int, visual_mode: bool = False
                     page.page_warped = 1
                     await db.flush()
 
-                # Deskew: straighten small text skew so horizontal
-                # bounding boxes align with the (now-horizontal) text.
-                from app.ocr import deskew_page as _deskew
-                deskewed = await asyncio.to_thread(
-                    _deskew, page.image_path,
-                )
+                # Deskew is safe because it preserves the image content,
+                # but it can still be disabled for unusual camera frames.
+                if settings.ENABLE_AUTO_DESKEW:
+                    from app.ocr import deskew_page as _deskew
+                    deskewed = await asyncio.to_thread(_deskew, page.image_path)
+                else:
+                    deskewed = None
                 if deskewed is not None:
                     logger.info(
                         "Deskew page %d: %s → %s",
