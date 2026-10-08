@@ -795,113 +795,39 @@ class OpenAIOcrEngine:
         self.model_name = settings.OPENAI_MODEL or "gpt-5.6"
         logger.info("OpenAI OCR engine initialized (%s)", self.model_name)
 
-    def _call(self, prompt: str, image: Image.Image) -> str:
-        import base64
-
-        buffer = __import__("io").BytesIO()
-        image.save(buffer, format="JPEG", quality=92)
-        image_data = base64.b64encode(buffer.getvalue()).decode("utf-8")
-
-        response = self.client.responses.create(
-            model=self.model_name,
-            input=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "input_text", "text": prompt},
-                        {"type": "input_image", "image_url": f"data:image/jpeg;base64,{image_data}"},
-                    ],
-                }
-            ],
-        )
-        text = getattr(response, "output_text", "")
-        if text is None:
-            text = ""
-        return text.strip()
-
-    def process_page(self, image_path: str | Path, rotation: int = 0, crop: dict | None = None) -> "GeminiOcrResult":
-        """Read a page image with OpenAI vision and return OCR segments."""
-        image = preprocess_image(image_path, rotation=rotation)
-
-        if crop:
-            cx, cy, cw, ch = crop["x"], crop["y"], crop["w"], crop["h"]
-            image = image.crop((cx, cy, cx + cw, cy + ch))
-
-        try:
-            raw_text = self._call(OPENAI_OCR_PROMPT, image)
-        except Exception:
-            logger.exception("OpenAI OCR API call failed for %s", image_path)
-            return GeminiOcrResult(rotation=0, segments=[], visual_elements=[])
-
-        lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
-        if not lines:
-            return GeminiOcrResult(rotation=0, segments=[], visual_elements=[])
-
-        width, height = image.size
-        spacing = max(int(height / max(len(lines), 1)), 20)
-        segments: list[OcrSegment] = []
-        for idx, line in enumerate(lines):
-            segments.append(
-                OcrSegment(
-                    text=line,
-                    confidence=0.88,
-                    bbox=(0, idx * spacing, width, spacing),
-                )
-            )
-        return GeminiOcrResult(rotation=0, segments=segments, visual_elements=[])
-
-
-class GeminiOcrEngine:
-    """OCR engine using Google Gemini Flash multimodal API (new google-genai SDK)."""
-
-    def __init__(self) -> None:
-        from google import genai
-        from google.genai import types
-
-        api_key = (settings.GEMINI_API_KEY or "").strip()
-        if not api_key or api_key.lower() == "your-gemini-api-key":
-            raise RuntimeError(
-                "GEMINI_API_KEY is not configured. Create a Gemini API key in "
-                "Google AI Studio and set GEMINI_API_KEY in the project .env file."
-            )
-
-        # Gemini OCR must use an API key explicitly. Do not let the Google
-        # GenAI SDK fall back to ambient OAuth credentials, which produces
-        # 401 ACCESS_TOKEN_TYPE_UNSUPPORTED against the Gemini API.
-        self.client = genai.Client(
-            api_key=api_key,
-            vertexai=False,
-            http_options=types.HttpOptions(timeout=30000),
-        )
-        # Keep the model configurable so a newly released/retired model does
-        # not require another source-code change.
-        self.model_name = (
-            (getattr(settings, "GEMINI_MODEL", "") or "").strip()
-            or "gemini-3.5-flash-lite"
-        )
-        logger.info("Gemini OCR engine initialized (%s)", self.model_name)
-
-    def _call(self, prompt: str, image: Image.Image | None, max_tokens: int = 8192, temperature: float = 0.0) -> str:
-        """Send a prompt + image to Gemini and return the text response."""
+    def _call(
+        self,
+        prompt: str,
+        image: Image.Image | None,
+        max_tokens: int = 8192,
+        temperature: float = 0.0,
+        response_mime_type: str | None = "application/json",
+    ) -> str:
+        """Send a prompt + optional image to Gemini and return the text response."""
         import time as _time
         from google.genai import types
 
         last_exc = None
         for attempt in range(2):
             try:
+                config_kwargs = {
+                    "temperature": temperature,
+                    "max_output_tokens": max_tokens,
+                }
+                if response_mime_type:
+                    config_kwargs["response_mime_type"] = response_mime_type
+
                 response = self.client.models.generate_content(
                     model=self.model_name,
                     contents=[prompt] if image is None else [prompt, image],
-                    config=types.GenerateContentConfig(
-                        temperature=temperature,
-                        max_output_tokens=max_tokens,
-                        response_mime_type="application/json",
-                    ),
+                    config=types.GenerateContentConfig(**config_kwargs),
                 )
                 text = response.text
                 if text is None:
-                    logger.warning("Gemini returned None text, finish_reason=%s",
-                                   response.candidates[0].finish_reason if response.candidates else "N/A")
+                    logger.warning(
+                        "Gemini returned None text, finish_reason=%s",
+                        response.candidates[0].finish_reason if response.candidates else "N/A",
+                    )
                     return ""
                 return text.strip()
             except Exception as e:
@@ -913,7 +839,13 @@ class GeminiOcrEngine:
 
     def generate_text(self, prompt: str, max_tokens: int = 1024, temperature: float = 0.2) -> str:
         """Generate text with the configured Gemini model without an image."""
-        return self._call(prompt, image=None, max_tokens=max_tokens, temperature=temperature)
+        return self._call(
+            prompt,
+            image=None,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            response_mime_type="text/plain",
+        )
 
     def refine_with_context(self, image: Image.Image, candidate: str) -> tuple[str, dict]:
         """Run a constrained second vision pass using detected domain context."""
