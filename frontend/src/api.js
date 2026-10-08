@@ -111,6 +111,11 @@ export async function getResults(pageId) {
   return data;
 }
 
+export async function summarizeText(text) {
+  const { data } = await api.post('/ocr/summary', { text });
+  return data;
+}
+
 export async function processBbox(pageId, bbox) {
   const { data } = await api.post(`/ocr/process-bbox/${pageId}`, {
     bbox_x: bbox.x,
