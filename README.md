@@ -320,6 +320,11 @@ MIT
 - Fixed FastAPI route parameter-ordering errors in the upload and model-training endpoints so the backend can import successfully under Python 3.11.
 
 
+### Authentication reliability
+
+- Google OAuth browser navigation now targets the configured backend origin directly instead of depending on Vite's `/api` proxy. This makes local sign-in reliable at `http://localhost:5176` while keeping the backend callback at `http://localhost:8000/auth/callback`.
+- Set `VITE_BACKEND_URL` when the frontend and backend use different origins.
+
 ### Visual structure recognition
 
 Squinta now asks the vision OCR pipeline to detect meaningful non-text handwriting structures alongside text, including arrows, brackets, tables/grids, boxes, circles, underlines, connectors, and larger diagrams. These are stored as structured page elements and rendered separately in the document viewer, so symbols are not forced into the OCR text stream.
