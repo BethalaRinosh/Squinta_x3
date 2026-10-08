@@ -48,19 +48,19 @@ export function AuthProvider({ children }) {
     let cancelled = false;
 
     async function restoreSession() {
-      const token = localStorage.getItem('token');
-      if (token) {
-        try {
-          const currentUser = await getMe();
-          if (!cancelled) setUser(normalizeUser(currentUser));
-          return;
-        } catch {
-          // Expired/invalid tokens fall back to this browser's guest session.
-          localStorage.removeItem('token');
-        }
-      }
-
       try {
+        const token = localStorage.getItem('token');
+        if (token) {
+          try {
+            const currentUser = await getMe();
+            if (!cancelled) setUser(normalizeUser(currentUser));
+            return;
+          } catch {
+            // Expired/invalid tokens fall back to this browser's guest session.
+            localStorage.removeItem('token');
+          }
+        }
+
         const session = await createGuestSession(getGuestId());
         localStorage.setItem('token', session.token);
         if (!cancelled) setUser(normalizeUser(session.user));
@@ -69,9 +69,6 @@ export function AuthProvider({ children }) {
       } finally {
         if (!cancelled) setLoading(false);
       }
-
-      // The valid-token branch also needs to release the initial loading view.
-      if (!cancelled) setLoading(false);
     }
 
     restoreSession();
