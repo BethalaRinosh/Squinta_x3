@@ -80,8 +80,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Squinti",
-    description="Backend API for the Squinti web application.",
+    title="Squinta",
+    description="Backend API for the Squinta web application.",
     version="0.1.0",
     lifespan=lifespan,
 )
