@@ -346,3 +346,7 @@ The Formatted view also preserves detected table structure: table borders and de
 
 ### Frontend build fix
 Fixed malformed escaped template literals in the Formatted/Results OCR view toggle that caused Vite/Babel to fail parsing `DocumentView.jsx`.
+
+
+### 2D formatted document reconstruction
+The Formatted OCR view now reconstructs the page in 2D instead of flattening OCR into a text block. OCR text uses its original pixel bounding boxes, while detected arrows, table outlines/grid lines, boxes, circles, connectors, brackets, and underlines are rendered from their stored geometry. This keeps the formatted output spatially faithful to the source page.
