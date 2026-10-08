@@ -208,6 +208,12 @@ export default function PageViewer({
 
           const type = (element.element_type || 'diagram').toLowerCase();
           const label = element.label || type;
+          let geometry = null;
+          try {
+            geometry = element.geometry ? JSON.parse(element.geometry) : null;
+          } catch {
+            geometry = null;
+          }
 
           if (type === 'arrow') {
             return (
@@ -248,6 +254,24 @@ export default function PageViewer({
               }}
               title={label}
             >
+              {type === 'table' && geometry?.rows > 1 && geometry?.columns > 1 && (
+                <>
+                  {Array.from({ length: geometry.rows - 1 }).map((_, index) => (
+                    <div
+                      key={`row-${index}`}
+                      className="absolute left-0 right-0 border-t border-indigo-300"
+                      style={{ top: `${((index + 1) / geometry.rows) * 100}%` }}
+                    />
+                  ))}
+                  {Array.from({ length: geometry.columns - 1 }).map((_, index) => (
+                    <div
+                      key={`col-${index}`}
+                      className="absolute top-0 bottom-0 border-l border-indigo-300"
+                      style={{ left: `${((index + 1) / geometry.columns) * 100}%` }}
+                    />
+                  ))}
+                </>
+              )}
               {type !== 'underline' && (
                 <span className="absolute -top-5 left-0 px-1.5 py-0.5 rounded bg-white/90 border border-gray-200 text-[10px] font-medium text-gray-600 whitespace-nowrap">
                   {label}
