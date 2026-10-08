@@ -386,3 +386,4 @@ The feature uses the existing `GEMINI_API_KEY` and `GEMINI_MODEL` settings. No a
 ## Stability pass
 
 The current build includes a focused reliability pass covering frontend search highlighting, Google Photos background OCR transaction ordering, and OCR processing-status polling. Existing OCR, translation, summaries, speech playback, correction, training, and visual-structure features are preserved.
+\n\n### OCR confidence scoring\n\nOCR confidence is now evidence-based instead of a fixed 90%/95% value. The displayed score combines Gemini's confidence only as a weak prior with observable transcription evidence such as output completeness, visible ink density, and explicit uncertainty markers. Scores remain normalized to 0-100% for the existing UI, but can now vary with the quality of the recognized region.\n
