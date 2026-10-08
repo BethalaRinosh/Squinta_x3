@@ -94,7 +94,7 @@ class VisualElement(Base):
     confidence: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     label: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     geometry: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    metadata: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    element_metadata: Mapped[Optional[str]] = mapped_column("metadata", Text, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
