@@ -1,49 +1,62 @@
 """Context-aware translation helpers.
 
-Protects likely proper nouns and explicitly declared names while translating the
-surrounding sentence. Common words such as "fish" are not protected unless context
-marks them as a name/brand.
+Protects names that context explicitly identifies as companies, brands, products,
+or organizations while allowing ordinary uses of the same words to translate.
 """
 from __future__ import annotations
 
 import re
 
-# Explicit semantic cues let us preserve names which are ordinary words too,
-# e.g. "My company's name is FISH". Generic capitalisation alone is not enough.
+# Match cues like "My company's name is FISH", "our brand is Orange", or
+# "The product is called Nothing". Stop at punctuation to avoid absorbing the
+# remainder of a sentence into the name.
 _NAME_CUE_PATTERNS = (
     re.compile(
+        r"\b(?:my|our|the)\s+(?:company|business|brand|startup|organisation|organization|"
+        r"product|app|application|website|platform|team|project|channel)\s+"
+        r"(?:name\s+is\s+|is\s+called\s+|is\s+named\s+|is\s+)",
+        re.IGNORECASE,
+    ),
+    re.compile(
         r"\b(?:my\s+)?(?:company|business|brand|startup|organisation|organization|"
-        r"product|app|application|website|platform|team|project|channel|company\'s\s+name|brand\'s\s+name)"
-        r"\s+(?:is|is\s+called|named|called)\s+"
-        r"(?P<name>[\w][\w&.-]*(?:\s+[\w][\w&.-]*){0,4})",
+        r"product|app|application|website|platform|team|project|channel)\s+name\s+is\s+",
         re.IGNORECASE,
     ),
     re.compile(
-        r"\b(?:the\s+)?(?:company|brand|product|app|platform|organization|organisation)"
-        r"\s+(?:name\s+is|is\s+called|called|named)\s+"
-        r"(?P<name>[\w][\w&.-]*(?:\s+[\w][\w&.-]*){0,4})",
+        r"\b(?:company|brand|product|app|platform|organization|organisation)\s+"
+        r"(?:is\s+called|is\s+named|called|named)\s+",
         re.IGNORECASE,
-    ),
-    re.compile(
-        r"(?P<name>[A-Z][A-Za-z0-9&.-]*(?:\s+[A-Z][A-Za-z0-9&.-]*){0,4})"
-        r"\s+(?:Inc\.?|LLC|Ltd\.?|Limited|Corporation|Corp\.?|Technologies|Technology|Labs|Studio|Studios|University|Foundation)\b"
     ),
 )
-
+_ORG_SUFFIX = re.compile(
+    r"(?P<name>[A-Z][A-Za-z0-9&.-]*(?:\s+[A-Z][A-Za-z0-9&.-]*){0,4})"
+    r"\s+(?:Inc\.?|LLC|Ltd\.?|Limited|Corporation|Corp\.?|Technologies|"
+    r"Technology|Labs|Studio|Studios|University|Foundation)\b"
+)
+_STOP = re.compile(r"[,;:!?\n\r]")
 _TRAILING_PUNCTUATION = " \t\r\n,;:!?)]}>."
 
 def find_protected_names(text: str) -> list[str]:
-    """Find names supported by explicit naming context or organization suffixes."""
+    """Return names supported by explicit context, not capitalization alone."""
     if not text:
         return []
     candidates: list[tuple[int, int, str]] = []
-    for pattern in _NAME_CUE_PATTERNS:
-        for match in pattern.finditer(text):
-            raw = match.group("name")
-            name = raw.rstrip(_TRAILING_PUNCTUATION).strip()
+    for cue in _NAME_CUE_PATTERNS:
+        for match in cue.finditer(text):
+            start = match.end()
+            remainder = text[start:]
+            stop = _STOP.search(remainder)
+            raw = remainder[:stop.start()] if stop else remainder
+            name = raw.strip().rstrip(".").strip()
+            # Remove conversational filler after the name when it is clearly a
+            # new clause. Keep multi-word names, including names with lowercase words.
             if name:
-                start = match.start("name")
-                candidates.append((start, start + len(name), name))
+                end = start + len(raw.rstrip(_TRAILING_PUNCTUATION + "."))
+                candidates.append((start, end, name))
+    for match in _ORG_SUFFIX.finditer(text):
+        name = match.group("name").strip()
+        if name:
+            candidates.append((match.start("name"), match.end("name"), name))
     candidates.sort(key=lambda item: (item[0], -(item[1] - item[0])))
     result: list[str] = []
     occupied: list[tuple[int, int]] = []
@@ -61,7 +74,7 @@ def _mask_names(text: str, names: list[str]) -> tuple[str, dict[str, str]]:
     replacements: dict[str, str] = {}
     for index, name in enumerate(sorted(names, key=len, reverse=True)):
         placeholder = f"ZXQPROTECTEDNAME{index}QXZ"
-        masked, count = re.subn(re.escape(name), placeholder, masked, flags=re.IGNORECASE)
+        masked, count = re.subn(r"(?<!\w)" + re.escape(name) + r"(?!\w)", placeholder, masked, flags=re.IGNORECASE)
         if count:
             replacements[placeholder] = name
     return masked, replacements
@@ -74,7 +87,7 @@ def _restore_names(text: str, replacements: dict[str, str]) -> str:
     return restored
 
 def translate_with_context(text: str, source_language: str, target_language: str, translator) -> str:
-    """Translate the sentence while keeping contextually identified names unchanged.
+    """Translate a sentence while keeping contextually identified names unchanged.
 
     ``translator`` is a callback with the same arguments as ``translate_text``.
     """
