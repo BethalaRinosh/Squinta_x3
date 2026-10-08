@@ -21,7 +21,14 @@ export default function DocumentView() {
   const [cropMode, setCropMode] = useState(false);
   const [trainMode, setTrainMode] = useState(false);
   const [trainIndex, setTrainIndex] = useState(0);
+  const [visualMode, setVisualMode] = useState(() => (
+    localStorage.getItem('squinta.visualMode') === 'true'
+  ));
   const notifiedProcessingPagesRef = useRef(new Set());
+
+  useEffect(() => {
+    localStorage.setItem('squinta.visualMode', String(visualMode));
+  }, [visualMode]);
 
   const { data: doc, isLoading: docLoading } = useQuery({
     queryKey: ['document', id],
@@ -109,7 +116,7 @@ export default function DocumentView() {
   }, [selectedPageIndex]);
 
   const processDocMutation = useMutation({
-    mutationFn: () => processDocument(id),
+    mutationFn: () => processDocument(id, visualMode),
     onSuccess: () => {
       notifiedProcessingPagesRef.current.clear();
       queryClient.setQueryData(['processingStatus'], { pages: [] });
@@ -125,7 +132,7 @@ export default function DocumentView() {
   });
 
   const processPageMutation = useMutation({
-    mutationFn: () => processPage(currentPageId),
+    mutationFn: () => processPage(currentPageId, visualMode),
     onSuccess: () => {
       notifiedProcessingPagesRef.current.delete(`${currentPageId}:done`);
       notifiedProcessingPagesRef.current.delete(`${currentPageId}:error`);
@@ -324,6 +331,18 @@ export default function DocumentView() {
             </svg>
             Play Mode
           </Link>
+          <label
+            className="hidden sm:flex items-center gap-2 px-2.5 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-lg bg-white cursor-pointer select-none"
+            title="Off: faster OCR with text, text positions, and arrows. On: also detect tables, boxes, circles, brackets, underlines, connectors, and diagrams."
+          >
+            <input
+              type="checkbox"
+              checked={visualMode}
+              onChange={(e) => setVisualMode(e.target.checked)}
+              className="accent-primary-600"
+            />
+            Detailed visuals
+          </label>
           <button
             onClick={() => processDocMutation.mutate()}
             disabled={processDocMutation.isPending}
