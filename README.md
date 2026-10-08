@@ -189,11 +189,11 @@ Camera Photo
 ```
 
 **Gemini Flash** (when `GEMINI_API_KEY` is set):
-- Sends full page image to Gemini 2.5 Flash for transcription with bounding boxes
+- Sends the full page image to the configured Gemini Flash model (default `gemini-3.5-flash-lite`) for transcription with bounding boxes
 - Auto-rotation via single-prompt orientation detection (0/90/180/270)
 - Perspective warp uses Gemini to detect page corners, with 2% outward padding to avoid trimming content
 - Bounding box alignment corrects Gemini's uniform y-spacing grid (which drifts from actual ruled-line spacing on notebook pages) by detecting real ink positions via Otsu binarization + horizontal projection
-- API calls include automatic retry (3 attempts with exponential backoff) for transient network errors
+- Gemini requests use an explicit API key, a bounded client timeout, and automatic retry for transient failures. The API key is never taken from Google OAuth credentials.
 
 **TrOCR** (local fallback):
 - `microsoft/trocr-large-handwritten` via HuggingFace Transformers
