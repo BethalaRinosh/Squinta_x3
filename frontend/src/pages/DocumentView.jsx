@@ -33,7 +33,15 @@ export default function DocumentView() {
   const currentPage = pages[selectedPageIndex];
   const currentPageId = currentPage?.id;
 
+  // A newly uploaded document can already be processing before this page
+  // mounts. Derive the initial state from the page records so we keep polling
+  // instead of rendering a stale one-shot OCR query.
   const [isProcessing, setIsProcessing] = useState(false);
+
+  useEffect(() => {
+    if (!pages.length) return;
+    setIsProcessing(pages.some((page) => page.processing_status === 'processing'));
+  }, [pages]);
 
   // Poll processing status for this document's pages.
   const { data: processingStatus } = useQuery({
