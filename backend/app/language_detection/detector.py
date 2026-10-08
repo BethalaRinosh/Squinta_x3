@@ -309,19 +309,13 @@ def identify_language_and_translate_to_english(text: str | None) -> dict[str, ob
         }
 
     detection = detect_language(str(text))
-    source_lang = detection.language if detection.language not in {"unknown", "mixed", "numeric"} else "en"
-    translated = translate_text_to_english(str(text), source_lang, "en") if source_lang != "en" else str(text).strip()
-
-    if source_lang == "en":
-        translated = str(text).strip()
-
     return {
         "language": detection.language,
         "language_name": detection.language_name,
         "script": detection.script,
         "confidence": detection.confidence,
-        "translated_text": translated,
-        "translation_applied": source_lang != "en" and translated != str(text).strip(),
+        "translated_text": str(text).strip(),
+        "translation_applied": False,
     }
 
 
