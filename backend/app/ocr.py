@@ -1293,6 +1293,7 @@ class GeminiOcrEngine:
         image_path: str | Path,
         rotation: int = 0,
         crop: dict | None = None,
+        visual_mode: bool = False,
     ) -> GeminiOcrResult:
         """Send full page image to Gemini for OCR.
 
