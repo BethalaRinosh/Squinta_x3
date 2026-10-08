@@ -367,7 +367,43 @@ async def _run_ocr_on_page(page_id: int, user_id: int, visual_mode: bool = False
             page_image = preprocess_image(page.image_path, rotation=0)
             ink_regions = InkLayerAnalyzer().analyze_image(page_image)
 
+            # Gemini often returns one box for an entire handwritten line.
+            # Probe approximate word boxes so a strike through one word does not
+            # hide unrelated words. Split only when a word-level stroke is found.
+            import copy
+            word_level_segments = []
             for segment in segments:
+                words = (segment.text or "").split()
+                x, y, w, h = segment.bbox
+                if len(words) < 2 or w < 40:
+                    word_level_segments.append(segment)
+                    continue
+
+                weights = [max(1, len(word)) for word in words]
+                gap_weight = 0.7
+                total_weight = sum(weights) + max(0, len(words) - 1) * gap_weight
+                cursor = float(x)
+                candidates = []
+                for word, weight in zip(words, weights):
+                    word_width = w * (weight / total_weight)
+                    word_x = int(round(cursor))
+                    word_right = int(round(cursor + word_width))
+                    word_bbox = (word_x, y, max(1, word_right - word_x), h)
+                    struck = detect_strike_through(page_image, word_bbox)
+                    candidates.append((word, word_bbox, struck))
+                    cursor += word_width + w * (gap_weight / total_weight)
+
+                if any(item[2] for item in candidates):
+                    for word, word_bbox, struck in candidates:
+                        word_segment = copy.copy(segment)
+                        word_segment.text = word
+                        word_segment.bbox = word_bbox
+                        word_segment.struck_through = struck
+                        word_level_segments.append(word_segment)
+                else:
+                    word_level_segments.append(segment)
+
+            for segment in word_level_segments:
                 bbox_x, bbox_y, bbox_w, bbox_h = segment.bbox
                 matched_region = None
                 for region in ink_regions:
