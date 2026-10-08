@@ -181,7 +181,10 @@ async def upload_document(
         )
         db.add(page)
 
-    await db.flush()
+    # Commit the document, pages, and processing markers before the
+    # background worker opens its own database session. Without this commit,
+    # the worker can race the request transaction and observe stale state.
+    await db.commit()
 
     # Auto-trigger OCR on all pages.
     from app.routes.ocr import _run_ocr_on_page
@@ -195,8 +198,12 @@ async def upload_document(
     for pg in doc.pages:
         pg.processing_status = "processing"
         background_tasks.add_task(_run_ocr_on_page, pg.id, current_user.id)
-    await db.flush()
+    await db.commit()
 
+    # Re-read the document after committing so the response contains the
+    # committed page state and fresh image paths.
+    re_result = await db.execute(re_stmt)
+    doc = re_result.scalar_one()
     return doc
 
 
