@@ -1,94 +1,19 @@
-"""Authentication routes -- Google OAuth2 login / callback / me / logout."""
-
-import logging
-from urllib.parse import urlencode
-
-from fastapi import APIRouter, Depends, Request, Response
-from fastapi.responses import RedirectResponse
-from sqlalchemy.ext.asyncio import AsyncSession
-
-logger = logging.getLogger(__name__)
-
-from app.auth import (
-    create_access_token,
-    get_current_user,
-    get_or_create_user,
-    oauth,
-)
-from app.config import settings
-from app.database import get_db
+"""Compatibility endpoints for local/demo mode with no sign-in screen."""
+from fastapi import APIRouter, Depends
+from app.auth import get_current_user
 from app.models import User
 from app.schemas import MessageResponse, UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.get("/login")
-async def login(request: Request) -> RedirectResponse:
-    """Redirect the browser to Google's OAuth2 consent screen."""
-    # Use the backend's canonical callback URL instead of the frontend's proxy URL.
-    # When this app is reached through Vite, request.url_for() resolves to the
-    # browser-facing origin (e.g. localhost:5176), which does not match the
-    # configured Google redirect URI.
-    redirect_uri = f"{settings.BACKEND_URL.rstrip('/')}/auth/callback"
-    return await oauth.google.authorize_redirect(request, redirect_uri)
-
-
-@router.get("/callback", name="auth_callback")
-async def callback(request: Request, db: AsyncSession = Depends(get_db)) -> RedirectResponse:
-    """Handle the OAuth2 callback from Google.
-
-    Exchanges the authorisation code for tokens, upserts the user row,
-    mints a JWT, and redirects back to the frontend with the token as a
-    query parameter so the SPA can store it.
-    """
-    try:
-        token_data = await oauth.google.authorize_access_token(request)
-    except Exception:
-        logger.exception("authorize_access_token failed")
-        # Redirect back to login instead of returning a 500
-        return RedirectResponse(url=f"{settings.FRONTEND_URL}/login?error=auth_failed")
-
-    # The id_token is already verified by authlib; extract user info.
-    userinfo: dict = token_data.get("userinfo", {})
-    if not userinfo:
-        userinfo = await oauth.google.userinfo(token=token_data)
-
-    google_id: str = userinfo["sub"]
-    email: str = userinfo["email"]
-    name: str = userinfo.get("name", email)
-    picture: str | None = userinfo.get("picture")
-
-    user = await get_or_create_user(db, google_id=google_id, email=email, name=name, picture_url=picture)
-
-    # Store the Google access token in the DB so we can call
-    # Google Photos API on behalf of the user later.
-    user.google_access_token = token_data.get("access_token")
-    await db.commit()
-
-    jwt_token = create_access_token(data={"sub": str(user.id)})
-
-    # Redirect to frontend with the JWT in query params.
-    params = urlencode({"token": jwt_token})
-    return RedirectResponse(url=f"{settings.FRONTEND_URL}/auth/callback?{params}")
-
-
 @router.get("/me", response_model=UserOut)
 async def me(current_user: User = Depends(get_current_user)) -> User:
-    """Return the currently authenticated user's profile."""
+    """Return the local demo profile for compatibility with the frontend."""
     return current_user
 
 
 @router.post("/logout", response_model=MessageResponse)
-async def logout(
-    request: Request,
-    _current_user: User = Depends(get_current_user),
-) -> MessageResponse:
-    """Log out the current user.
-
-    Since JWTs are stateless the client is responsible for discarding its
-    token.  This endpoint clears any server-side session data (e.g. the
-    cached Google access token) and returns a confirmation message.
-    """
-    request.session.clear()
-    return MessageResponse(message="Logged out successfully")
+async def logout() -> MessageResponse:
+    """No-op: local demo mode does not have a login session."""
+    return MessageResponse(message="Logout is disabled in local demo mode.")
