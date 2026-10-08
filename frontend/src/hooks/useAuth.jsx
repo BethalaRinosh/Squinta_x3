@@ -33,7 +33,7 @@ function normalizeUser(user) {
 export function AuthProvider({ children }) {
   // Keep supporting the optional Google OAuth callback, but never require it.
   // Read the token before React Router can replace the callback URL.
-  useState(() => {
+  const [initialToken] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
     if (token) {
@@ -45,6 +45,10 @@ export function AuthProvider({ children }) {
 
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Keep the callback token in the hook's state initializer so it is read
+  // synchronously before React Router can replace the URL.
+  void initialToken;
 
   useEffect(() => {
     let cancelled = false;
