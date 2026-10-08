@@ -18,6 +18,7 @@ A web application that converts handwritten documents to text using OCR, then le
 - **Google Photos Import** -- Import photos directly via the Google Photos Picker API
 - **Full-text Search** -- Whoosh-indexed search across all your transcribed documents
 - **Text-to-Speech** -- Select OCR text and read it aloud, or read individual results, using the browser's built-in speech synthesis
+- **AI Summary** -- Generate a concise Gemini summary of the current page's OCR text without sending the image through another vision pass
 - **Model Export** -- Download your personalized LoRA weights
 - **Domain Context Engine** -- Detects likely medical, legal, finance, science, or education context from OCR candidates and runs a constrained Gemini verification pass using domain terminology, without inventing unsupported text.
 
@@ -120,6 +121,7 @@ handwriting-ocr/
 │   │       ├── auth.py          # Google OAuth login/callback, JWT
 │   │       ├── documents.py     # Upload, camera, CRUD, rotate, crop
 │   │       ├── ocr.py           # Trigger OCR, get results, process bbox, train bbox
+│   │       └── summary.py       # Generate AI summaries from OCR text
 │   │       ├── corrections.py   # Submit corrections, Play mode batches
 │   │       ├── search.py        # Full-text search (Whoosh)
 │   │       ├── photos.py        # Google Photos Picker import
@@ -281,6 +283,7 @@ Copy `.env.example` to `.env`:
 | GET | `/ocr/results/{page_id}` | Get OCR results |
 | GET | `/ocr/processing-status` | Poll processing state |
 | PUT | `/ocr/result/{result_id}/bbox` | Update result bounding box (train mode) |
+| POST | `/ocr/summary` | Generate an AI summary from OCR text using Gemini |
 
 ### Corrections
 | Method | Path | Description |
@@ -371,3 +374,9 @@ The controls are available as explicit backend environment flags for controlled 
 - `GEMINI_DESKEW=false`
 
 Gemini OCR bounding boxes are therefore generated against the same pixel space that the browser displays. The JSON parser also accepts common structured-response wrappers such as `results`, `items`, and `detections` instead of silently dropping a valid response.
+
+### AI Summary
+
+After OCR finishes, the Document View shows an **AI Summary** button in the OCR Results panel. It sends the recognized page text to the same configured Gemini model used by Squinta and returns a concise summary. The image is not sent again for this feature, so it uses a regular text-generation request rather than another vision OCR pass.
+
+The feature uses the existing `GEMINI_API_KEY` and `GEMINI_MODEL` settings. No additional API key or dependency is required.
