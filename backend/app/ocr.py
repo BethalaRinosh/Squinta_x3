@@ -1052,45 +1052,194 @@ class GeminiOcrEngine:
                     ):
                         points = best[2]
 
-        # A box/table outline should follow a detected quadrilateral when one is
-        # available, rather than rendering a mathematically perfect bbox.
-        if element_type in {"box", "table"} and w > 8 and h > 8:
-            roi_x0, roi_y0 = max(0, x), max(0, y)
-            roi_x1, roi_y1 = min(image.width, x + w), min(image.height, y + h)
-            if roi_x1 > roi_x0 and roi_y1 > roi_y0:
-                roi = cv2.cvtColor(
-                    np.asarray(image.crop((roi_x0, roi_y0, roi_x1, roi_y1))),
-                    cv2.COLOR_RGB2GRAY,
-                )
-                edges = cv2.Canny(roi, 50, 150, apertureSize=3)
-                contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-                best_quad = None
-                best_score = 0.0
-                target_area = float(max(1, w * h))
-                for contour in contours:
-                    area = cv2.contourArea(contour)
-                    if area < target_area * 0.18:
-                        continue
-                    perimeter = cv2.arcLength(contour, True)
-                    approx = cv2.approxPolyDP(contour, 0.04 * perimeter, True)
-                    if len(approx) != 4:
-                        continue
-                    bx, by, bw, bh = cv2.boundingRect(approx)
-                    coverage = min(1.0, (bw * bh) / target_area)
-                    score = (area / target_area) * coverage
-                    if score > best_score:
-                        best_score = score
-                        best_quad = approx.reshape(4, 2)
-                if best_quad is not None and best_score >= 0.20:
-                    quad = sorted(
-                        [[roi_x0 + int(px), roi_y0 + int(py)] for px, py in best_quad],
-                        key=lambda p: (p[1], p[0]),
-                    )
-                    # Stable clockwise order: top-left, top-right, bottom-right, bottom-left.
-                    top = sorted(quad[:2], key=lambda p: p[0])
-                    bottom = sorted(quad[2:], key=lambda p: p[0])
-                    points = [top[0], top[1], bottom[1], bottom[0]]
+        # Boxes and tables need geometry from the actual ink, not Gemini's
+        # axis-aligned detection box. In particular, a table can be recognized
+        # correctly while its Gemini bbox is displaced by a large amount.
+        if element_type == "table":
+            # Search the full page for a strong four-sided table-like outline.
+            # Do NOT use Gemini's bbox as the ROI because that is exactly the
+            # failure mode this refinement is meant to correct.
+            gray_full = cv2.cvtColor(np.asarray(image), cv2.COLOR_RGB2GRAY)
+            edges_full = cv2.Canny(gray_full, 45, 125, apertureSize=3)
+            hough = cv2.HoughLinesP(
+                edges_full,
+                1,
+                np.pi / 360,
+                threshold=max(30, int(min(image.width, image.height) * 0.055)),
+                minLineLength=max(70, int(min(image.width, image.height) * 0.28)),
+                maxLineGap=max(12, int(min(image.width, image.height) * 0.035)),
+            )
 
+            horizontal: list[tuple[float, float, tuple[int, int, int, int]]] = []
+            vertical: list[tuple[float, float, tuple[int, int, int, int]]] = []
+            if hough is not None:
+                for raw_line in hough.reshape(-1, 4):
+                    lx1, ly1, lx2, ly2 = [int(v) for v in raw_line]
+                    dx, dy = lx2 - lx1, ly2 - ly1
+                    length = math.hypot(dx, dy)
+                    angle = math.degrees(math.atan2(dy, dx))
+                    if length < 70:
+                        continue
+                    if abs(angle) <= 22:
+                        horizontal.append((length, angle, (lx1, ly1, lx2, ly2)))
+                    elif 68 <= abs(angle) <= 112:
+                        vertical.append((length, angle, (lx1, ly1, lx2, ly2)))
+
+            # Keep only long, page-internal candidates. Page borders are normally
+            # near the image edges and are excluded from the table search.
+            margin_x = image.width * 0.06
+            margin_y = image.height * 0.06
+            horizontal = [
+                item for item in horizontal
+                if min(item[2][0], item[2][2]) > margin_x
+                and max(item[2][0], item[2][2]) < image.width - margin_x
+                and min(item[2][1], item[2][3]) > margin_y
+                and max(item[2][1], item[2][3]) < image.height - margin_y
+            ]
+            vertical = [
+                item for item in vertical
+                if min(item[2][0], item[2][2]) > margin_x
+                and max(item[2][0], item[2][2]) < image.width - margin_x
+                and min(item[2][1], item[2][3]) > margin_y
+                and max(item[2][1], item[2][3]) < image.height - margin_y
+            ]
+
+            def line_y(line: tuple[int, int, int, int]) -> float:
+                return (line[1] + line[3]) / 2.0
+
+            def line_x(line: tuple[int, int, int, int]) -> float:
+                return (line[0] + line[2]) / 2.0
+
+            # Generate plausible outer rectangles from long horizontal and
+            # vertical/near-vertical strokes. Score by size, closure, and
+            # proximity to Gemini's *center* only. The center is useful as a
+            # weak hint, but the Gemini bbox itself is deliberately ignored.
+            gem_cx = x + w / 2.0
+            gem_cy = y + h / 2.0
+            best = None
+            best_score = -1.0
+
+            def intersect_lines(a, b):
+                ax1, ay1, ax2, ay2 = a
+                bx1, by1, bx2, by2 = b
+                den = (ax1 - ax2) * (by1 - by2) - (ay1 - ay2) * (bx1 - bx2)
+                if abs(den) < 1e-6:
+                    return None
+                px = ((ax1 * ay2 - ay1 * ax2) * (bx1 - bx2)
+                      - (ax1 - ax2) * (bx1 * by2 - by1 * bx2)) / den
+                py = ((ax1 * ay2 - ay1 * ax2) * (by1 - by2)
+                      - (ay1 - ay2) * (bx1 * by2 - by1 * bx2)) / den
+                return px, py
+
+            # Tables in handwritten pages are commonly much wider than tall.
+            # Limit candidates to a practical document-table aspect range.
+            for top in horizontal:
+                for bottom in horizontal:
+                    if bottom is top:
+                        continue
+                    top_line, bottom_line = top[2], bottom[2]
+                    if line_y(bottom_line) <= line_y(top_line) + image.height * 0.10:
+                        continue
+                    left_y = line_y(top_line)
+                    right_y = line_y(top_line)
+                    for left in vertical:
+                        for right in vertical:
+                            if line_x(right[2]) <= line_x(left[2]) + image.width * 0.20:
+                                continue
+                            tl = intersect_lines(top_line, left[2])
+                            tr = intersect_lines(top_line, right[2])
+                            bl = intersect_lines(bottom_line, left[2])
+                            br = intersect_lines(bottom_line, right[2])
+                            if not all((tl, tr, bl, br)):
+                                continue
+                            pts = [tl, tr, br, bl]
+                            if any(
+                                px < margin_x or px > image.width - margin_x
+                                or py < margin_y or py > image.height - margin_y
+                                for px, py in pts
+                            ):
+                                continue
+
+                            width_top = math.dist(tl, tr)
+                            width_bottom = math.dist(bl, br)
+                            height_left = math.dist(tl, bl)
+                            height_right = math.dist(tr, br)
+                            width_avg = (width_top + width_bottom) / 2.0
+                            height_avg = (height_left + height_right) / 2.0
+                            if height_avg <= 0 or width_avg / height_avg < 1.1:
+                                continue
+                            if width_avg < image.width * 0.35 or height_avg < image.height * 0.15:
+                                continue
+
+                            center_x = sum(p[0] for p in pts) / 4.0
+                            center_y = sum(p[1] for p in pts) / 4.0
+                            center_dist = math.hypot(
+                                (center_x - gem_cx) / image.width,
+                                (center_y - gem_cy) / image.height,
+                            )
+                            # Prefer long outlines and reject candidates that are
+                            # absurdly far from the recognized table center.
+                            if center_dist > 0.55:
+                                continue
+
+                            score = (
+                                min(2.0, width_avg / image.width)
+                                + min(1.2, height_avg / image.height)
+                                - center_dist * 1.8
+                                + min(0.8, (width_avg / max(height_avg, 1)) * 0.12)
+                            )
+                            if score > best_score:
+                                best_score = score
+                                best = pts
+
+            if best is not None:
+                points = [
+                    [int(round(px)), int(round(py))]
+                    for px, py in best
+                ]
+
+                # Find only strong internal divider strokes that actually exist.
+                # The old frontend invented every row/column, which visibly
+                # produced lines that were not present in the handwriting.
+                left_x = min(p[0] for p in points)
+                right_x = max(p[0] for p in points)
+                top_y = min(p[1] for p in points)
+                bottom_y = max(p[1] for p in points)
+                roi = gray_full[
+                    max(0, top_y):min(image.height, bottom_y + 1),
+                    max(0, left_x):min(image.width, right_x + 1),
+                ]
+                if roi.size:
+                    inner_edges = cv2.Canny(roi, 45, 125, apertureSize=3)
+                    inner_lines = cv2.HoughLinesP(
+                        inner_edges, 1, np.pi / 360,
+                        threshold=max(18, int(min(roi.shape) * 0.08)),
+                        minLineLength=max(45, int(min(roi.shape) * 0.30)),
+                        maxLineGap=max(10, int(min(roi.shape) * 0.04)),
+                    )
+                    grid_lines: list[list[list[int]]] = []
+                    if inner_lines is not None:
+                        for raw in inner_lines.reshape(-1, 4):
+                            qx1, qy1, qx2, qy2 = [int(v) for v in raw]
+                            qx1 += left_x; qx2 += left_x
+                            qy1 += top_y; qy2 += top_y
+                            length = math.hypot(qx2 - qx1, qy2 - qy1)
+                            angle = abs(math.degrees(math.atan2(qy2 - qy1, qx2 - qx1)))
+                            if length < 0.30 * width_avg:
+                                continue
+                            if angle <= 20 or 70 <= angle <= 110:
+                                # Keep dividers away from the outer perimeter.
+                                if (
+                                    left_x + 0.08 * width_avg < min(qx1, qx2)
+                                    and max(qx1, qx2) < right_x - 0.08 * width_avg
+                                ):
+                                    grid_lines.append([[qx1, qy1], [qx2, qy2]])
+
+                    g["grid_lines"] = grid_lines
+                    # Do not invent rows/columns. They are retained only as
+                    # descriptive metadata for the UI if Gemini supplied them.
+                    g["rows"] = max(1, int(g.get("rows") or 1))
+                    g["columns"] = max(1, int(g.get("columns") or 1))
         # For circles, preserve Gemini's ellipse geometry when supplied. If not,
         # use the bbox as an ellipse instead of a rounded CSS rectangle.
         if element_type == "circle":
