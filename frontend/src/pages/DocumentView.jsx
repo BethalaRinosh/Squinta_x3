@@ -35,11 +35,18 @@ export default function DocumentView() {
   const [visualMode, setVisualMode] = useState(() => (
     localStorage.getItem('squinta.visualMode') === 'true'
   ));
+  const [removeStrikeOffs, setRemoveStrikeOffs] = useState(() => (
+    localStorage.getItem('squinta.removeStrikeOffs') === 'true'
+  ));
   const notifiedProcessingPagesRef = useRef(new Set());
 
   useEffect(() => {
     localStorage.setItem('squinta.visualMode', String(visualMode));
   }, [visualMode]);
+
+  useEffect(() => {
+    localStorage.setItem('squinta.removeStrikeOffs', String(removeStrikeOffs));
+  }, [removeStrikeOffs]);
 
   const { data: doc, isLoading: docLoading } = useQuery({
     queryKey: ['document', id],
@@ -722,6 +729,15 @@ export default function DocumentView() {
                 <h2 className="text-sm font-semibold text-gray-700">OCR Results</h2>
                 {results.length > 0 && (
                   <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-1.5 text-[11px] text-gray-500" title="Hide OCR results detected as struck through">
+                      <input
+                        type="checkbox"
+                        checked={removeStrikeOffs}
+                        onChange={(e) => setRemoveStrikeOffs(e.target.checked)}
+                        className="h-3.5 w-3.5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <span>Remove strike-offs</span>
+                    </label>
                     <label className="flex items-center gap-1 text-[11px] text-gray-400" title="Speech speed">
                       <span>Speed</span>
                       <select
@@ -869,7 +885,7 @@ export default function DocumentView() {
               ) : results.length > 0 ? (
                 resultView === 'formatted' ? (
                   <StructuredOcrView
-                    results={results}
+                    results={results.filter((result) => !removeStrikeOffs || !result.struck_through)}
                     visualElements={currentPage?.visual_elements || []}
                     imageSrc={currentPage.image_url || currentPage.url}
                     onSelectResult={setSelectedResultId}
@@ -879,7 +895,7 @@ export default function DocumentView() {
                   />
                 ) : (
                   <OcrResultList
-                    results={results.map(result => ({
+                    results={results.filter((result) => !removeStrikeOffs || !result.struck_through).map(result => ({
                       ...result,
                       translated_text: translatedResults[result.id]?.text || '',
                       translation_target: translatedResults[result.id]?.language || '',
