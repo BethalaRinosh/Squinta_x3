@@ -399,7 +399,10 @@ async def _run_ocr_on_page(page_id: int, user_id: int, visual_mode: bool = False
                     model_version=model_version,
                     ink_layer=label,
                     ink_metadata=metadata,
-                    struck_through=bool(getattr(segment, "struck_through", False)),
+                    struck_through=bool(
+                        getattr(segment, "struck_through", False)
+                        or detect_strike_through(page_image, (bbox_x, bbox_y, bbox_w, bbox_h))
+                    ),
                 )
                 db.add(ocr_row)
                 await db.flush()
