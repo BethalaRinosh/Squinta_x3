@@ -136,13 +136,6 @@ app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads"
 async def health_check() -> dict:
     return {"status": "ok"}
 
-# ── Health check ──────────────────────────────────────────────────────────────
-
-
-@app.get("/health", tags=["health"])
-async def health_check() -> dict:
-    return {"status": "ok"}
-
 # In the production Docker image, the built React app lives outside the
 # backend package. Serve it from FastAPI so Docker exposes a single app URL.
 FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
