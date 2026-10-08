@@ -305,3 +305,8 @@ The Dockerfile is multi-stage: Node builds the frontend, Python serves both the 
 ## License
 
 MIT
+
+
+### Latest Reliability Fix
+
+- Fixed FastAPI route parameter-ordering errors in the upload and model-training endpoints so the backend can import successfully under Python 3.11.
