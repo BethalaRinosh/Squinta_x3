@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { getMe, logout as apiLogout } from '../api';
+import { getMe, login as apiLogin, logout as apiLogout } from '../api';
 
 const AuthContext = createContext(null);
 
@@ -41,7 +41,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = useCallback(() => {
-    window.location.href = '/api/auth/login';
+    apiLogin();
   }, []);
 
   const logout = useCallback(async () => {
