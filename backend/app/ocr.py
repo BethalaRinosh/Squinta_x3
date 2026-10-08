@@ -493,19 +493,31 @@ What clockwise rotation in degrees (0, 90, 180, or 270) would make the text read
 
 Reply with ONLY a single number: 0, 90, 180, or 270"""
 
-GEMINI_OCR_PROMPT = """Transcribe ALL handwritten text in this image line by line.
+GEMINI_OCR_PROMPT = """Analyze this handwritten page as both an OCR system and a document-layout understanding system.
 
-CRITICAL: For each line, provide the EXACT bounding box that tightly fits the ink of that specific line. Each line has a DIFFERENT y position and DIFFERENT height based on where the ink actually is. Do NOT use uniform spacing or a grid.
+Return EVERY handwritten text line AND every meaningful non-text visual structure.
 
-Return a JSON array. Each element: {"text": "...", "box": [y1, x1, y2, x2]}
-Coordinates are normalized 0-1000 (0=top/left edge, 1000=bottom/right edge).
+For text:
+{"type":"text","text":"...","box":[y1,x1,y2,x2],"confidence":0.0}
 
-- y1 = top of the tallest ascender on that line
-- y2 = bottom of the lowest descender on that line
-- x1 = left edge of the first character
-- x2 = right edge of the last character
+For visual structures:
+{"type":"visual","element_type":"arrow|bracket|table|box|circle|underline|connector|diagram","label":"optional description","box":[y1,x1,y2,x2],"geometry":{"points":[[x,y],...],"direction":"optional","rows":0,"columns":0}}
 
-Output ONLY the JSON array. If no text: return []"""
+Use arrow for hand-drawn arrows such as ->, =>, curved arrows, or arrows connecting concepts.
+Use bracket for (), [], {}, or large hand-drawn brackets that structure content.
+Use table for visible tables or rough hand-drawn grids.
+Use box for hand-drawn rectangles around text.
+Use circle for circled words or numbers.
+Use underline for meaningful underlines.
+Use connector for lines connecting two regions when they are not arrows.
+Use diagram for larger visual structures containing multiple connected shapes/elements.
+
+Only return structures that are actually visible. Do NOT invent structures from text alone.
+A visual element may overlap text.
+
+Coordinates are normalized 0-1000. For geometry.points use [x,y] pairs in the same normalized coordinate system.
+
+Output ONLY a JSON array. If there is no content, return []."""
 
 GEMINI_PAGE_CORNERS_PROMPT = """This is a camera photo. Is there a paper page, notebook, or open notebook spread visible with non-paper background (desk, table, hands, objects) around it?
 
