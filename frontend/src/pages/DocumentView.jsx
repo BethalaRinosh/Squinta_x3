@@ -592,13 +592,13 @@ export default function DocumentView() {
                 <div className="mt-3 flex rounded-lg bg-gray-100 p-0.5">
                   <button
                     onClick={() => setResultView('formatted')}
-                    className={\`flex-1 rounded-md px-2 py-1 text-xs font-medium transition-colors \${resultView === 'formatted' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}\`}
+                    className={`flex-1 rounded-md px-2 py-1 text-xs font-medium transition-colors ${resultView === 'formatted' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                   >
                     Formatted
                   </button>
                   <button
                     onClick={() => setResultView('list')}
-                    className={\`flex-1 rounded-md px-2 py-1 text-xs font-medium transition-colors \${resultView === 'list' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}\`}
+                    className={`flex-1 rounded-md px-2 py-1 text-xs font-medium transition-colors ${resultView === 'list' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                   >
                     Results
                   </button>
