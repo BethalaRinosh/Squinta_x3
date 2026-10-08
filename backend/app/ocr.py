@@ -1049,7 +1049,7 @@ class GeminiOcrEngine:
             if (stripped.startswith("[") or stripped.startswith("{")
                     or stripped.startswith("```")):
                 logger.warning("Gemini returned unparseable JSON, returning empty")
-                return GeminiOcrResult(rotation=0, segments=[])
+                return GeminiOcrResult(rotation=0, segments=[], visual_elements=[])
             text_lines = [l.strip() for l in raw_text.split("\n") if l.strip()]
 
         if not text_lines:
