@@ -517,6 +517,17 @@ A visual element may overlap text.
 
 Coordinates are normalized 0-1000. For geometry.points use [x,y] pairs in the same normalized coordinate system.
 
+GEOMETRY IS CRITICAL. The frontend will draw the detected structure from geometry, not from the axis-aligned box:
+- arrow: provide an ordered polyline from tail to arrow tip; include at least 2 points and preserve the actual direction and bends.
+- connector: provide an ordered polyline along the visible connector.
+- underline: provide the actual two endpoints of the underline.
+- bracket: provide an ordered polyline following the visible bracket.
+- box: provide the visible outline corners as 4 ordered points, even if the box is slightly skewed or hand-drawn.
+- circle: provide 4 or more points around the visible outline, plus a center/radius when possible.
+- table: provide the outer outline points and accurate rows/columns.
+- diagram: provide meaningful visible connector/outline points when possible.
+Never replace a diagonal/curved structure with a horizontal line. Never force a hand-drawn outline into a perfect rectangle when its corners are visibly skewed.
+
 Output ONLY a JSON array. If there is no content, return []."""
 
 GEMINI_PAGE_CORNERS_PROMPT = """This is a camera photo. Is there a paper page, notebook, or open notebook spread visible with non-paper background (desk, table, hands, objects) around it?
@@ -959,6 +970,152 @@ class GeminiOcrEngine:
             logger.warning("Invalid page corners structure: %r", data)
             return None
 
+    @staticmethod
+    def _refine_visual_geometry(
+        image: Image.Image,
+        element_type: str,
+        bbox: tuple[int, int, int, int],
+        geometry: dict | None,
+    ) -> dict:
+        """Convert Gemini geometry to pixels and refine simple shapes with OpenCV.
+
+        Gemini is good at recognizing *what* a structure is, but its axis-aligned
+        bbox is not sufficient for diagonal arrows, hand-drawn boxes, or circles.
+        Store real geometry in image pixels so the frontend can render the actual
+        direction/outline instead of inventing a horizontal line or perfect CSS
+        rectangle.
+        """
+        import cv2
+
+        x, y, w, h = bbox
+        g = dict(geometry) if isinstance(geometry, dict) else {}
+        raw_points = g.get("points") or []
+        points: list[list[int]] = []
+
+        if isinstance(raw_points, list):
+            for point in raw_points:
+                if not isinstance(point, (list, tuple)) or len(point) < 2:
+                    continue
+                try:
+                    px = int(round(float(point[0]) / 1000.0 * image.width))
+                    py = int(round(float(point[1]) / 1000.0 * image.height))
+                except (TypeError, ValueError):
+                    continue
+                points.append([
+                    max(0, min(image.width - 1, px)),
+                    max(0, min(image.height - 1, py)),
+                ])
+
+        # Use image evidence to tighten line-like structures. This is deliberately
+        # conservative: only replace Gemini geometry when a strong long edge exists.
+        line_types = {"arrow", "connector", "underline"}
+        if element_type in line_types:
+            roi_x0, roi_y0 = max(0, x), max(0, y)
+            roi_x1 = min(image.width, x + w)
+            roi_y1 = min(image.height, y + h)
+            if roi_x1 > roi_x0 and roi_y1 > roi_y0:
+                roi = cv2.cvtColor(
+                    np.asarray(image.crop((roi_x0, roi_y0, roi_x1, roi_y1))),
+                    cv2.COLOR_RGB2GRAY,
+                )
+                edges = cv2.Canny(roi, 50, 150, apertureSize=3)
+                min_len = max(12, int(max(w, h) * 0.35))
+                lines = cv2.HoughLinesP(
+                    edges,
+                    1,
+                    np.pi / 180,
+                    threshold=max(10, int(min(60, max(w, h) * 0.12))),
+                    minLineLength=min_len,
+                    maxLineGap=max(8, int(max(w, h) * 0.08)),
+                )
+                candidates: list[tuple[float, float, list[list[int]]]] = []
+                if lines is not None:
+                    for line in lines.reshape(-1, 4):
+                        lx1, ly1, lx2, ly2 = [int(v) for v in line]
+                        dx, dy = lx2 - lx1, ly2 - ly1
+                        length = math.hypot(dx, dy)
+                        angle = abs(math.degrees(math.atan2(dy, dx)))
+                        if element_type == "underline" and angle > 25 and angle < 155:
+                            continue
+                        candidates.append((
+                            length,
+                            angle,
+                            [[roi_x0 + lx1, roi_y0 + ly1], [roi_x0 + lx2, roi_y0 + ly2]],
+                        ))
+                if candidates:
+                    candidates.sort(key=lambda item: item[0], reverse=True)
+                    best = candidates[0]
+                    # Don't replace a detailed curved/angled Gemini path with a
+                    # short CV fragment. Use CV only when it is clearly substantial.
+                    if best[0] >= max(12, 0.45 * max(w, h)):
+                        points = best[2]
+
+        # A box/table outline should follow a detected quadrilateral when one is
+        # available, rather than rendering a mathematically perfect bbox.
+        if element_type in {"box", "table"} and w > 8 and h > 8:
+            roi_x0, roi_y0 = max(0, x), max(0, y)
+            roi_x1, roi_y1 = min(image.width, x + w), min(image.height, y + h)
+            if roi_x1 > roi_x0 and roi_y1 > roi_y0:
+                roi = cv2.cvtColor(
+                    np.asarray(image.crop((roi_x0, roi_y0, roi_x1, roi_y1))),
+                    cv2.COLOR_RGB2GRAY,
+                )
+                edges = cv2.Canny(roi, 50, 150, apertureSize=3)
+                contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+                best_quad = None
+                best_score = 0.0
+                target_area = float(max(1, w * h))
+                for contour in contours:
+                    area = cv2.contourArea(contour)
+                    if area < target_area * 0.18:
+                        continue
+                    perimeter = cv2.arcLength(contour, True)
+                    approx = cv2.approxPolyDP(contour, 0.04 * perimeter, True)
+                    if len(approx) != 4:
+                        continue
+                    bx, by, bw, bh = cv2.boundingRect(approx)
+                    coverage = min(1.0, (bw * bh) / target_area)
+                    score = (area / target_area) * coverage
+                    if score > best_score:
+                        best_score = score
+                        best_quad = approx.reshape(4, 2)
+                if best_quad is not None and best_score >= 0.20:
+                    quad = sorted(
+                        [[roi_x0 + int(px), roi_y0 + int(py)] for px, py in best_quad],
+                        key=lambda p: (p[1], p[0]),
+                    )
+                    # Stable clockwise order: top-left, top-right, bottom-right, bottom-left.
+                    top = sorted(quad[:2], key=lambda p: p[0])
+                    bottom = sorted(quad[2:], key=lambda p: p[0])
+                    points = [top[0], top[1], bottom[1], bottom[0]]
+
+        # For circles, preserve Gemini's ellipse geometry when supplied. If not,
+        # use the bbox as an ellipse instead of a rounded CSS rectangle.
+        if element_type == "circle":
+            if len(points) < 4:
+                g["center"] = [x + w / 2, y + h / 2]
+                g["radius"] = [w / 2, h / 2]
+            else:
+                xs = [p[0] for p in points]
+                ys = [p[1] for p in points]
+                g["center"] = [sum(xs) / len(xs), sum(ys) / len(ys)]
+                g["radius"] = [max(1, (max(xs) - min(xs)) / 2), max(1, (max(ys) - min(ys)) / 2)]
+
+        if points:
+            g["points"] = points
+
+        if element_type == "arrow" and len(points) >= 2:
+            g["direction"] = [
+                points[-1][0] - points[-2][0],
+                points[-1][1] - points[-2][1],
+            ]
+
+        if element_type == "table":
+            g["rows"] = max(1, int(g.get("rows") or 1))
+            g["columns"] = max(1, int(g.get("columns") or 1))
+
+        return g
+
     def process_page(
         self,
         image_path: str | Path,
@@ -1023,13 +1180,21 @@ class GeminiOcrEngine:
                         py1 = max(0, int(y1 / 1000.0 * img_height))
                         px2 = min(img_width, int(x2 / 1000.0 * img_width))
                         py2 = min(img_height, int(y2 / 1000.0 * img_height))
+                        element_type = str(e.get("element_type") or "diagram").lower()
+                        visual_bbox = (px1, py1, max(1, px2 - px1), max(1, py2 - py1))
+                        refined_geometry = self._refine_visual_geometry(
+                            image,
+                            element_type,
+                            visual_bbox,
+                            e.get("geometry"),
+                        )
                         visual_elements.append(
                             VisualElement(
-                                element_type=str(e.get("element_type") or "diagram").lower(),
+                                element_type=element_type,
                                 confidence=max(0.0, min(1.0, float(e.get("confidence", 0.9)))),
-                                bbox=(px1, py1, max(1, px2 - px1), max(1, py2 - py1)),
+                                bbox=visual_bbox,
                                 label=e.get("label"),
-                                geometry=_json.dumps(e.get("geometry"), ensure_ascii=False) if e.get("geometry") is not None else None,
+                                geometry=_json.dumps(refined_geometry, ensure_ascii=False),
                             )
                         )
                     except (TypeError, ValueError):
