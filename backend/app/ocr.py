@@ -547,43 +547,6 @@ Never replace a diagonal/curved structure with a horizontal line. Never force a 
 
 Output ONLY a JSON array. If there is no content, return [].""";
 
-GEMINI_DETAILED_OCR_PROMPT = """Analyze this handwritten page as both an OCR system and a document-layout understanding system.
-
-Return EVERY handwritten text line AND every meaningful non-text visual structure.
-
-For text:
-{"type":"text","text":"...","box":[y1,x1,y2,x2],"confidence":0.0}
-
-For visual structures:
-{"type":"visual","element_type":"arrow|bracket|table|box|circle|underline|connector|diagram","label":"optional description","box":[y1,x1,y2,x2],"geometry":{"points":[[x,y],...],"direction":"optional","rows":0,"columns":0}}
-
-Use arrow for hand-drawn arrows such as ->, =>, curved arrows, or arrows connecting concepts.
-Use bracket for (), [], {}, or large hand-drawn brackets that structure content.
-Use table for visible tables or rough hand-drawn grids.
-Use box for hand-drawn rectangles around text.
-Use circle for circled words or numbers.
-Use underline for meaningful underlines.
-Use connector for lines connecting two regions when they are not arrows.
-Use diagram for larger visual structures containing multiple connected shapes/elements.
-
-Only return structures that are actually visible. Do NOT invent structures from text alone.
-A visual element may overlap text.
-
-Coordinates are normalized 0-1000. For geometry.points use [x,y] pairs in the same normalized coordinate system.
-
-GEOMETRY IS CRITICAL. The frontend will draw the detected structure from geometry, not from the axis-aligned box:
-- arrow: provide an ordered polyline from tail to arrow tip; include at least 2 points and preserve the actual direction and bends.
-- connector: provide an ordered polyline along the visible connector.
-- underline: provide the actual two endpoints of the underline.
-- bracket: provide an ordered polyline following the visible bracket.
-- box: provide the visible outline corners as 4 ordered points, even if the box is slightly skewed or hand-drawn.
-- circle: provide 4 or more points around the visible outline, plus a center/radius when possible.
-- table: provide the outer outline points and accurate rows/columns.
-- diagram: provide meaningful visible connector/outline points when possible.
-Never replace a diagonal/curved structure with a horizontal line. Never force a hand-drawn outline into a perfect rectangle when its corners are visibly skewed.
-
-Output ONLY a JSON array. If there is no content, return []."""
-
 GEMINI_PAGE_CORNERS_PROMPT = """This is a camera photo. Is there a paper page, notebook, or open notebook spread visible with non-paper background (desk, table, hands, objects) around it?
 
 If YES — return the 4 corners of ALL the paper/pages visible (the entire notebook spread if open) as JSON:
