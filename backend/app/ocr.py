@@ -1114,6 +1114,10 @@ class GeminiOcrEngine:
             g["rows"] = max(1, int(g.get("rows") or 1))
             g["columns"] = max(1, int(g.get("columns") or 1))
 
+        # Persist an explicit coordinate-space marker so older database rows
+        # containing Gemini's normalized 0-1000 geometry remain distinguishable.
+        g["coordinate_space"] = "pixel"
+
         return g
 
     def process_page(
