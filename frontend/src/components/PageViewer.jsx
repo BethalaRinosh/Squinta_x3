@@ -340,56 +340,31 @@ export default function PageViewer({
 
               if (type === 'table') {
                 const quad = points.length >= 4 ? points.slice(0, 4) : fallback;
-                const rows = Math.max(1, Number(geometry?.rows) || 1);
-                const columns = Math.max(1, Number(geometry?.columns) || 1);
-                const [tl, tr, br, bl] = quad;
-
-                const lerp = (a, b, t) => [
-                  a[0] + (b[0] - a[0]) * t,
-                  a[1] + (b[1] - a[1]) * t,
-                ];
-                const gridLines = [];
-
-                for (let row = 1; row < rows; row += 1) {
-                  const t = row / rows;
-                  const left = lerp(tl, bl, t);
-                  const right = lerp(tr, br, t);
-                  gridLines.push(
-                    <line
-                      key={`row-${row}`}
-                      {...common}
-                      strokeWidth={Math.max(1, common.strokeWidth * 0.65)}
-                      x1={left[0]}
-                      y1={left[1]}
-                      x2={right[0]}
-                      y2={right[1]}
-                    />,
-                  );
-                }
-
-                for (let column = 1; column < columns; column += 1) {
-                  const t = column / columns;
-                  const top = lerp(tl, tr, t);
-                  const bottom = lerp(bl, br, t);
-                  gridLines.push(
-                    <line
-                      key={`column-${column}`}
-                      {...common}
-                      strokeWidth={Math.max(1, common.strokeWidth * 0.65)}
-                      x1={top[0]}
-                      y1={top[1]}
-                      x2={bottom[0]}
-                      y2={bottom[1]}
-                    />,
-                  );
-                }
+                const rawGridLines = Array.isArray(geometry?.grid_lines) ? geometry.grid_lines : [];
+                const gridLines = rawGridLines
+                  .filter((line) => Array.isArray(line) && line.length >= 2)
+                  .map((line) => line
+                    .filter((p) => Array.isArray(p) && p.length >= 2)
+                    .map((p) => [Number(p[0]), Number(p[1])])
+                    .filter(([px, py]) => Number.isFinite(px) && Number.isFinite(py)))
+                  .filter((line) => line.length >= 2);
 
                 return (
                   <g key={`visual-${element.id}`}>
                     <polygon {...common} points={quad.map(([px, py]) => `${px},${py}`).join(' ')}>
                       <title>{element.label || 'table'}</title>
                     </polygon>
-                    {gridLines}
+
+                    {/* Only draw divider lines actually detected in the image.
+                        Never manufacture a regular grid from row/column counts. */}
+                    {gridLines.map((line, index) => (
+                      <polyline
+                        key={`grid-${index}`}
+                        {...common}
+                        strokeWidth={Math.max(1, common.strokeWidth * 0.65)}
+                        points={line.map(([px, py]) => `${px},${py}`).join(' ')}
+                      />
+                    ))}
                   </g>
                 );
               }
