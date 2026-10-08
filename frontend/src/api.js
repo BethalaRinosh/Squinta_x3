@@ -33,9 +33,12 @@ api.interceptors.response.use(
 
 // ---- Auth ----
 
-export async function login() {
-  // Redirect to backend OAuth endpoint
-  window.location.href = '/api/auth/login';
+const BACKEND_ORIGIN = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000').replace(/\/$/, '');
+
+export function login() {
+  // OAuth is a browser navigation, so bypass the Vite /api proxy.
+  // This guarantees the request reaches FastAPI directly during local development.
+  window.location.assign(`${BACKEND_ORIGIN}/auth/login`);
 }
 
 export async function getMe() {
