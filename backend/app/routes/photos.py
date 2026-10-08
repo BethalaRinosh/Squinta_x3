@@ -234,7 +234,10 @@ async def import_from_picker(
             db.add(page)
             imported += 1
 
-    await db.flush()
+    # Commit the document/pages before background OCR starts. The worker uses
+    # a separate SQLAlchemy session, so leaving these rows uncommitted can make
+    # it race the import transaction and fail to find the pages.
+    await db.commit()
 
     # Auto-trigger OCR on all imported pages.
     from app.routes.ocr import _run_ocr_on_page
@@ -249,7 +252,9 @@ async def import_from_picker(
     for pg in doc_reloaded.pages:
         pg.processing_status = "processing"
         background_tasks.add_task(_run_ocr_on_page, pg.id, current_user.id)
-    await db.flush()
+    # Persist the processing markers before returning. Background tasks use a
+    # separate session and must observe the committed page state.
+    await db.commit()
 
     # Clean up the picker session.
     try:
