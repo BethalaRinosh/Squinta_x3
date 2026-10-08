@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getDocument, processDocument, processPage, getResults,
   submitCorrection, rotatePage, processBbox, setPageCrop, clearPageCrop,
-  autoCropPage, getProcessingStatus, updateResultBbox, summarizeText,
+  autoCropPage, getProcessingStatus, updateResultBbox, summarizeText, translateText,
 } from '../api';
 import { useToast } from '../hooks/useToast';
 import PageViewer from '../components/PageViewer';
@@ -26,6 +26,12 @@ export default function DocumentView() {
   const [speechRate, setSpeechRate] = useState(1);
   const [speakingResultId, setSpeakingResultId] = useState(null);
   const [aiSummary, setAiSummary] = useState('');
+  const [aiSummaryLanguage, setAiSummaryLanguage] = useState({ code: 'unknown', name: 'Unknown' });
+  const [summaryTargetLanguage, setSummaryTargetLanguage] = useState('en');
+  const [translatedSummary, setTranslatedSummary] = useState('');
+  const [summaryTranslating, setSummaryTranslating] = useState(false);
+  const [translatingResultId, setTranslatingResultId] = useState(null);
+  const [translatedResults, setTranslatedResults] = useState({});
   const [visualMode, setVisualMode] = useState(() => (
     localStorage.getItem('squinta.visualMode') === 'true'
   ));
@@ -226,7 +232,7 @@ export default function DocumentView() {
   const summaryMutation = useMutation({
     mutationFn: () => {
       const pageText = results
-        .map((result) => String(result?.translated_text || result?.text || '').trim())
+        .map((result) => String(result?.text || '').trim())
         .filter(Boolean)
         .join('\n');
       return summarizeText(pageText);
@@ -239,6 +245,35 @@ export default function DocumentView() {
       toast.error(detail || 'Failed to generate AI summary.');
     },
   });
+
+  const handleTranslateResult = useCallback(async (result, targetLanguage) => {
+    if (!result?.text || !targetLanguage) return;
+    setTranslatingResultId(result.id);
+    try {
+      const data = await translateText(result.text, result.language || 'auto', targetLanguage);
+      setTranslatedResults(prev => ({
+        ...prev,
+        [result.id]: { text: data.translated_text || '', language: data.target_language || targetLanguage },
+      }));
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to translate OCR text.');
+    } finally {
+      setTranslatingResultId(null);
+    }
+  }, [toast]);
+
+  const handleTranslateSummary = useCallback(async () => {
+    if (!aiSummary || !summaryTargetLanguage) return;
+    setSummaryTranslating(true);
+    try {
+      const data = await translateText(aiSummary, aiSummaryLanguage.code || 'auto', summaryTargetLanguage);
+      setTranslatedSummary(data.translated_text || '');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to translate AI summary.');
+    } finally {
+      setSummaryTranslating(false);
+    }
+  }, [aiSummary, aiSummaryLanguage.code, summaryTargetLanguage, toast]);
 
   const trainBboxMutation = useMutation({
     mutationFn: ({ resultId, bbox }) => updateResultBbox(resultId, bbox),
@@ -748,49 +783,59 @@ export default function DocumentView() {
                   {aiSummary && (
                     <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
                       <div className="mb-2 flex items-center justify-between gap-2">
-                        <span className="text-xs font-semibold text-gray-700">AI Summary</span>
+                        <span className="text-xs font-semibold text-gray-700">
+                          AI Summary{aiSummaryLanguage.code !== 'unknown' ? ` · ${aiSummaryLanguage.name}` : ''}
+                        </span>
                         <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={speakSummary}
-                            className={"inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors " + (
-                              speakingResultId === '__summary__'
-                                ? "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                                : "bg-primary-50 text-primary-700 hover:bg-primary-100"
-                            )}
-                            aria-label={speakingResultId === '__summary__' ? "Stop reading summary" : "Read summary aloud"}
-                            title={speakingResultId === '__summary__' ? "Stop reading summary" : "Read summary aloud"}
-                          >
-                            {speakingResultId === '__summary__' ? (
-                              <>
-                                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
-                                  <path d="M6 6h12v12H6z" />
-                                </svg>
-                                Stop
-                              </>
-                            ) : (
-                              <>
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5L6 9H3v6h3l5 4V5z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.5 8.5a5 5 0 010 7M18.5 6a8 8 0 010 12" />
-                                </svg>
-                                Read aloud
-                              </>
-                            )}
+                          {aiSummaryLanguage.code !== 'en' && aiSummaryLanguage.code !== 'unknown' && (
+                            <div className="flex items-center gap-1">
+                              <select
+                                value={summaryTargetLanguage}
+                                onChange={(e) => {
+                                  setSummaryTargetLanguage(e.target.value);
+                                  setTranslatedSummary('');
+                                }}
+                                className="rounded border border-gray-200 bg-white px-1.5 py-1 text-[11px] text-gray-600 outline-none"
+                                aria-label="Summary translation target language"
+                              >
+                                <option value="en">English</option>
+                                <option value="hi">Hindi</option>
+                                <option value="ta">Tamil</option>
+                                <option value="te">Telugu</option>
+                                <option value="ml">Malayalam</option>
+                                <option value="kn">Kannada</option>
+                                <option value="bn">Bengali</option>
+                                <option value="gu">Gujarati</option>
+                                <option value="mr">Marathi</option>
+                                <option value="pa">Punjabi</option>
+                                <option value="ur">Urdu</option>
+                              </select>
+                              <button type="button" onClick={handleTranslateSummary} disabled={summaryTranslating}
+                                className="rounded-md bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-600 hover:bg-gray-200 disabled:opacity-50">
+                                {summaryTranslating ? 'Translating...' : 'Translate'}
+                              </button>
+                            </div>
+                          )}
+                          <button type="button" onClick={speakSummary}
+                            className={"inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors " + (speakingResultId === '__summary__' ? "bg-gray-200 text-gray-700 hover:bg-gray-300" : "bg-primary-50 text-primary-700 hover:bg-primary-100")}
+                            aria-label={speakingResultId === '__summary__' ? "Stop reading summary" : "Read summary aloud"}>
+                            {speakingResultId === '__summary__' ? 'Stop' : 'Read aloud'}
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => setAiSummary('')}
-                            className="text-[11px] text-gray-400 hover:text-gray-600"
-                            aria-label="Dismiss AI summary"
-                          >
+                          <button type="button" onClick={() => setAiSummary('')}
+                            className="text-[11px] text-gray-400 hover:text-gray-600" aria-label="Dismiss AI summary">
                             Close
                           </button>
                         </div>
                       </div>
-                      <div className="whitespace-pre-line text-sm leading-6 text-gray-700">
-                        {aiSummary}
-                      </div>
+                      <div className="whitespace-pre-line text-sm leading-6 text-gray-700">{aiSummary}</div>
+                      {translatedSummary && (
+                        <div className="mt-2 border-t border-gray-200 pt-2 whitespace-pre-line text-sm leading-6 text-emerald-700">
+                          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-600">
+                            {summaryTargetLanguage.toUpperCase()}
+                          </div>
+                          {translatedSummary}
+                        </div>
+                      )}
                     </div>
                   )}
                   <div className="mt-3 flex rounded-lg bg-gray-100 p-0.5">
@@ -834,12 +879,18 @@ export default function DocumentView() {
                   />
                 ) : (
                   <OcrResultList
-                    results={results}
+                    results={results.map(result => ({
+                      ...result,
+                      translated_text: translatedResults[result.id]?.text || '',
+                      translation_target: translatedResults[result.id]?.language || '',
+                    }))}
                     selectedResultId={selectedResultId}
                     onSelectResult={setSelectedResultId}
                     onCorrect={handleCorrect}
                     onSpeak={speakResult}
                     speakingResultId={speakingResultId}
+                    onTranslate={handleTranslateResult}
+                    translatingResultId={translatingResultId}
                   />
                 )
               ) : (
