@@ -108,6 +108,42 @@ def preprocess_image(image_path: str | Path, rotation: int = 0) -> Image.Image:
     return img
 
 
+def prepare_ocr_image(image: Image.Image, max_dimension: int = 1800) -> Image.Image:
+    """Return a model-inference copy bounded without changing aspect ratio."""
+    image=image.convert("RGB")
+    longest=max(image.width,image.height)
+    if longest<=max_dimension:
+        return image
+    scale=max_dimension/float(longest)
+    return image.resize((max(1,round(image.width*scale)),max(1,round(image.height*scale))),Image.Resampling.LANCZOS)
+
+
+def validate_page_corners(corners: list[tuple[int,int]], image: Image.Image) -> list[tuple[int,int]] | None:
+    """Reject implausible Gemini quads before perspective warping."""
+    if len(corners)!=4:
+        return None
+    import cv2
+    w,h=image.size
+    pts=np.asarray(corners,dtype=np.float32)
+    if not np.isfinite(pts).all():
+        return None
+    pts[:,0]=np.clip(pts[:,0],0,max(0,w-1)); pts[:,1]=np.clip(pts[:,1],0,max(0,h-1))
+    contour=pts.reshape((-1,1,2))
+    if not cv2.isContourConvex(contour) or abs(float(cv2.contourArea(contour)))<0.12*w*h:
+        return None
+    tl,tr,br,bl=[tuple(map(int,p)) for p in pts]
+    top,bottom=math.dist(tl,tr),math.dist(bl,br)
+    left,right=math.dist(tl,bl),math.dist(tr,br)
+    if min(top,bottom,left,right)<100:
+        return None
+    if max(top,bottom)/max(min(top,bottom),1)>2.5 or max(left,right)/max(min(left,right),1)>2.5:
+        return None
+    aspect=max(top,bottom)/max(max(left,right),1)
+    if not 0.20<=aspect<=5.0:
+        return None
+    return [tl,tr,br,bl]
+
+
 def binarize(image: Image.Image) -> Image.Image:
     """Adaptive binarization for cleaner OCR input.
 
@@ -585,7 +621,12 @@ def perspective_warp_page(
         logger.warning("perspective_warp_page: could not read %s", image_path)
         return None
 
-    tl, tr, br, bl = corners
+    with Image.open(image_path) as source_img:
+        normalised = validate_page_corners(corners, source_img)
+    if normalised is None:
+        logger.warning("perspective_warp_page: invalid/unsafe corner geometry, skipping")
+        return None
+    tl, tr, br, bl = normalised
 
     # Compute output dimensions from the max width/height of the quadrilateral.
     width_top = math.hypot(tr[0] - tl[0], tr[1] - tl[1])
