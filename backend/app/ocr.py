@@ -767,6 +767,86 @@ Return ONLY the transcribed text, nothing else.
 If no text is visible, respond with EMPTY."""
 
 
+def _calculate_gemini_confidence(
+    text: str,
+    image: Image.Image,
+    model_confidence: float | None = None,
+) -> float:
+    """Estimate OCR reliability from observable evidence.
+
+    Gemini's numeric confidence is not a calibrated probability for this
+    structured OCR request, so it is treated as a weak prior rather than the
+    displayed score. The final value combines model prior, output completeness,
+    visible-ink evidence, and explicit uncertainty markers.
+    """
+    import re
+
+    clean = (text or "").strip()
+    if not clean:
+        return 0.0
+
+    prior = 0.5 if model_confidence is None else max(
+        0.0, min(1.0, float(model_confidence))
+    )
+
+    gray = np.asarray(image.convert("L"))
+    if gray.size == 0:
+        return round(prior, 4)
+
+    # Robust dark-ink estimate for camera photos with uneven lighting.
+    gray_f = gray.astype(np.float32)
+    median = float(np.median(gray_f))
+    mad = float(np.median(np.abs(gray_f - median)))
+    threshold = max(80.0, median - max(18.0, 2.5 * mad))
+    ink_ratio = float(np.mean(gray_f < threshold))
+
+    if ink_ratio < 0.001:
+        ink_score = 0.15
+    elif ink_ratio < 0.004:
+        ink_score = 0.45
+    elif ink_ratio < 0.08:
+        ink_score = 0.85
+    elif ink_ratio < 0.16:
+        ink_score = 0.70
+    else:
+        ink_score = 0.40
+
+    chars = re.findall(r"[A-Za-z0-9\\u00C0-\\uFFFF]", clean)
+    char_count = len(chars)
+    if char_count == 0:
+        completeness = 0.10
+    elif char_count < 3:
+        completeness = 0.35
+    elif char_count < 8:
+        completeness = 0.60
+    elif char_count < 18:
+        completeness = 0.78
+    else:
+        completeness = 0.90
+
+    if clean.upper() in {"EMPTY", "N/A", "NONE", "[UNCERTAIN]"}:
+        completeness = 0.10
+
+    uncertainty_hits = len(
+        re.findall(
+            r"\\[UNCERTAIN\\]|\\b(?:illegible|unclear|unknown)\\b",
+            clean,
+            re.I,
+        )
+    )
+    uncertainty_score = max(0.0, 1.0 - 0.20 * uncertainty_hits)
+
+    # Keep the model's own number weak. This prevents a fixed/optimistic
+    # model response from dominating the displayed reliability score.
+    score = (
+        0.20 * prior
+        + 0.35 * completeness
+        + 0.30 * ink_score
+        + 0.15 * uncertainty_score
+    )
+    return round(max(0.0, min(1.0, score)), 4)
+
+
 @dataclass
 class GeminiOcrResult:
     """Result from Gemini OCR on a full page."""
@@ -844,7 +924,7 @@ class OpenAIOcrEngine:
             segments.append(
                 OcrSegment(
                     text=line,
-                    confidence=0.88,
+                    confidence=_calculate_gemini_confidence(line, image.crop((0, idx * spacing, width, min(height, (idx + 1) * spacing)))),
                     bbox=(0, idx * spacing, width, spacing),
                 )
             )
@@ -1695,7 +1775,9 @@ class GeminiOcrEngine:
 
             segments.append(OcrSegment(
                 text=text,
-                confidence=0.90,
+                confidence=_calculate_gemini_confidence(
+                    text, image.crop((px1, py1, min(img_width, px1 + bw), min(img_height, py1 + bh)))
+                ),
                 bbox=(px1 + crop_offset_x, py1 + crop_offset_y, bw, bh),
             ))
 
@@ -2190,7 +2272,7 @@ class GeminiOcrEngine:
             text = self._call(GEMINI_SINGLE_PROMPT, image, max_tokens=1024)
             if text == "EMPTY":
                 return "", 0.0
-            return text, 0.95
+            return text, _calculate_gemini_confidence(text, image)
         except Exception:
             logger.exception("Gemini single OCR failed")
             return "", 0.0
