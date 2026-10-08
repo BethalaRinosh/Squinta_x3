@@ -53,6 +53,8 @@ export default function StructuredOcrView({
   imageSrc,
   selectedResultId,
   onSelectResult,
+  onSpeak,
+  speakingResultId,
 }) {
   const [pageSize, setPageSize] = useState({ width: 1000, height: 1400 });
 
@@ -281,26 +283,53 @@ export default function StructuredOcrView({
           const fontSize = Math.max(10, Math.min(22, result.h * 0.72));
 
           return (
-            <button
+            <div
               key={result.id}
-              type="button"
-              onClick={() => onSelectResult?.(result.id)}
-              className={
-                'absolute overflow-visible whitespace-nowrap text-left font-mono leading-none ' +
-                'rounded px-0.5 transition-colors hover:bg-primary-50 ' +
-                (isSelected ? 'bg-primary-100 text-primary-800' : 'text-gray-800')
-              }
+              className="absolute group"
               style={{
                 left: (result.x * sx) + '%',
                 top: (result.y * sy) + '%',
                 width: Math.max(1, result.w * sx) + '%',
                 minHeight: Math.max(1, result.h * sy) + '%',
-                fontSize: fontSize + 'px',
               }}
-              title={'Confidence: ' + Math.round((result.confidence || 0) * 100) + '%'}
             >
-              {result.text.trim()}
-            </button>
+              <button
+                type="button"
+                onClick={() => onSelectResult?.(result.id)}
+                className={
+                  'block overflow-visible whitespace-nowrap select-text text-left font-mono leading-none ' +
+                  'rounded px-0.5 transition-colors hover:bg-primary-50 ' +
+                  (isSelected ? 'bg-primary-100 text-primary-800' : 'text-gray-800')
+                }
+                style={{ fontSize: fontSize + 'px' }}
+                title={'Confidence: ' + Math.round((result.confidence || 0) * 100) + '%'}
+              >
+                {result.text.trim()}
+              </button>
+              {onSpeak && result.text && (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onSpeak(result);
+                  }}
+                  className={"absolute -right-6 top-1/2 -translate-y-1/2 p-0.5 rounded bg-white border border-gray-200 text-gray-400 opacity-0 group-hover:opacity-100 hover:text-primary-600 transition-opacity " + (speakingResultId === result.id ? "opacity-100 text-primary-600" : "")}
+                  title={speakingResultId === result.id ? "Stop reading" : "Read this line aloud"}
+                  aria-label={speakingResultId === result.id ? "Stop reading" : "Read this line aloud"}
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    {speakingResultId === result.id ? (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 6h12v12H6z" />
+                    ) : (
+                      <>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5L6 9H3v6h3l5 4V5z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.5 8.5a5 5 0 010 7M18.5 6a8 8 0 010 12" />
+                      </>
+                    )}
+                  </svg>
+                </button>
+              )}
+            </div>
           );
         })}
       </div>
