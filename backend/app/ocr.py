@@ -78,6 +78,17 @@ class OcrSegment:
     bbox: tuple[int, int, int, int]  # (x, y, w, h) relative to original image
 
 
+@dataclass
+class VisualElement:
+    """A non-text visual structure detected on the page."""
+    element_type: str
+    confidence: float
+    bbox: tuple[int, int, int, int]
+    label: str | None = None
+    geometry: str | None = None
+    metadata: str | None = None
+
+
 # ---------------------------------------------------------------------------
 # Image preprocessing helpers
 # ---------------------------------------------------------------------------
