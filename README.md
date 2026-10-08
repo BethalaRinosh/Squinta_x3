@@ -80,6 +80,10 @@ docker compose up --build
 - Docker now serves the built React frontend from the FastAPI app, while keeping the `/health` endpoint reachable.
 - Removed a credential value from `.env.example`. If the old Gemini key was real, revoke/rotate it in Google AI Studio because removing it from the latest file does not erase it from Git history.
 
+### Gemini OCR reliability
+
+Gemini OCR requests are bounded by a client-side timeout, and structured OCR output is capped at a practical size with JSON response mode enabled. This prevents a stalled vision request from leaving a page in `processing` indefinitely. Visual-only detections are also preserved when a page contains structures but no recognized text.
+
 ## Audit Status
 
 A source-level audit has been completed across the backend, frontend, OCR pipeline, configuration, authentication, storage, Docker setup, and repository hygiene. No remaining occurrences were found for the known branding mismatch, leaked key pattern, unsupported Gemini thinking configuration, Windows filesystem URL pattern, or invalid FastAPI background-task default.
