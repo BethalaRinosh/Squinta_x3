@@ -37,7 +37,11 @@ class VisualElementOut(BaseModel):
     confidence: float
     label: Optional[str] = None
     geometry: Optional[str] = None
-    metadata: Optional[str] = None
+    metadata: Optional[str] = Field(
+        default=None,
+        validation_alias="element_metadata",
+        serialization_alias="metadata",
+    )
     created_at: datetime.datetime
 
     model_config = {"from_attributes": True}
