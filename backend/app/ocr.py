@@ -713,6 +713,7 @@ class GeminiOcrResult:
     """Result from Gemini OCR on a full page."""
     rotation: int
     segments: list[OcrSegment]
+    visual_elements: list[VisualElement]
 
 
 OPENAI_OCR_PROMPT = """Read this handwritten page carefully.
