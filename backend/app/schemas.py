@@ -68,17 +68,25 @@ class PageOut(BaseModel):
     model_config = {"from_attributes": True}
 
     def model_post_init(self, __context) -> None:
-        """Convert the filesystem image_path to a browser-serveable URL."""
+        """Build a browser URL from the stored upload filesystem path."""
         if self.image_path and not self.image_url:
-            # image_path looks like ./data/uploads/1/abc.heic
-            # Static mount serves /uploads from ./data/uploads
-            # So strip the ./data/ prefix
-            path = self.image_path
-            if path.startswith("./data/"):
-                path = path[len("./data/"):]
-            elif path.startswith("data/"):
-                path = path[len("data/"):]
-            self.image_url = f"/api/{path}"
+            from pathlib import Path
+            from app.config import settings
+
+            try:
+                relative = Path(self.image_path).resolve().relative_to(
+                    Path(settings.UPLOAD_DIR).resolve()
+                )
+                self.image_url = "/api/uploads/" + relative.as_posix()
+            except ValueError:
+                # Support legacy relative paths already stored in the database.
+                path = str(self.image_path).replace("\\", "/")
+                if "/uploads/" in path:
+                    self.image_url = "/api/uploads/" + path.split("/uploads/", 1)[1].lstrip("/")
+                elif path.startswith("data/uploads/"):
+                    self.image_url = "/api/uploads/" + path[len("data/uploads/"):]
+                else:
+                    self.image_url = ""
 
 
 class DocumentOut(BaseModel):
