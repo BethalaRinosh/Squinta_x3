@@ -75,6 +75,14 @@ async def lifespan(app: FastAPI):
             except Exception:
                 pass
 
+    async with engine.begin() as conn:
+        try:
+            await conn.execute(
+                text("ALTER TABLE ocr_results ADD COLUMN struck_through INTEGER NOT NULL DEFAULT 0")
+            )
+        except Exception:
+            pass
+
     yield
 
     # Shutdown: dispose of the engine connection pool.
