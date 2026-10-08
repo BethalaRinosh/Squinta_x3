@@ -73,14 +73,11 @@ async def _run_ocr_on_page(page_id: int, user_id: int) -> None:
         if page is None:
             return
 
-        # Guard: duplicate OCR jobs on the same page can race each other and
-        # delete the then-current image while another task is still using it.
-        if not _can_start_ocr(page.processing_status):
-            logger.warning(
-                "Skipping duplicate OCR run for page %d: status=%s",
-                page_id,
-                page.processing_status,
-            )
+        # A page may already be marked as "processing" by the request handler
+        # immediately before this background task starts. Only reject a page
+        # that is already completed; "processing" here means this worker owns it.
+        if page.processing_status == "done":
+            logger.warning("Skipping OCR run for already completed page %d", page_id)
             return
 
         page.image_path = _normalize_image_path(page.image_path) or page.image_path
