@@ -17,6 +17,7 @@ A web application that converts handwritten documents to text using OCR, then le
 - **Calibration** -- Bootstrap training with a single handwriting sample
 - **Google Photos Import** -- Import photos directly via the Google Photos Picker API
 - **Full-text Search** -- Whoosh-indexed search across all your transcribed documents
+- **Text-to-Speech** -- Select OCR text and read it aloud, or read individual results, using the browser's built-in speech synthesis
 - **Model Export** -- Download your personalized LoRA weights
 
 ## Quick Start
@@ -298,7 +299,7 @@ Copy `.env.example` to `.env`:
 
 **Backend:** FastAPI, SQLAlchemy 2.0 (async), aiosqlite, python-jose (JWT), authlib (OAuth), OpenCV
 
-**Frontend:** React 19, Vite 6, Tailwind CSS 4, React Router 6, TanStack Query 5, Axios
+**Frontend:** React 19, Vite 6, Tailwind CSS 4, React Router 6, TanStack Query 5, Axios, Web Speech API (browser-native text-to-speech)
 
 **ML/Vision:** Google GenAI (Gemini 2.5 Flash), Transformers (TrOCR), PEFT (LoRA), PyTorch, OpenCV (perspective warp, deskew, ink detection)
 
