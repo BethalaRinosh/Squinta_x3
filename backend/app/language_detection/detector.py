@@ -21,7 +21,7 @@ from app.language_detection.registry import SCRIPT_LANGUAGE_PRIORS, get_language
 
 
 def translate_text(text: str, source_language: str, target_language: str) -> str:
-    """Translate text between supported language codes, preserving source on failure."""
+    """Translate text and raise a useful error if the provider fails."""
     if not text or not text.strip():
         return ""
     source_language = (source_language or "").strip().lower()
@@ -29,17 +29,21 @@ def translate_text(text: str, source_language: str, target_language: str) -> str
     if not target_language or source_language == target_language:
         return text.strip()
     if source_language in {"unknown", "mixed", "numeric"}:
-        return text.strip()
+        raise ValueError(f"Cannot translate text with unsupported source language '{source_language}'.")
+    if source_language == "auto":
+        source_language = "auto"
 
     try:
         from deep_translator import GoogleTranslator
         translated = GoogleTranslator(source=source_language, target=target_language).translate(text)
-        if translated and str(translated).strip():
-            return str(translated).strip()
-    except Exception:
-        pass
+    except Exception as exc:
+        raise RuntimeError(
+            f"Google Translate failed for source '{source_language}' and target '{target_language}': {exc}"
+        ) from exc
 
-    return text.strip()
+    if not translated or not str(translated).strip():
+        raise RuntimeError("Google Translate returned an empty result.")
+    return str(translated).strip()
 
 
 def translate_text_to_english(text: str, source_language: str, target_language: str = "en") -> str:
