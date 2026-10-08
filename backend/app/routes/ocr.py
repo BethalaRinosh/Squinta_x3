@@ -13,7 +13,7 @@ from app.auth import get_current_user
 from app.config import settings
 from app.database import get_db
 from app.language_detection import build_ocr_language_annotation, identify_language_and_translate_to_english
-from app.models import Document, OcrResult, Page, User, UserModel
+from app.models import Document, OcrResult, Page, User, UserModel, VisualElement
 from app.schemas import MessageResponse, OcrResultOut
 
 router = APIRouter(prefix="/ocr", tags=["ocr"])
@@ -111,6 +111,7 @@ async def _run_ocr_on_page(page_id: int, user_id: int) -> None:
         model_version = f"user-v{user_model.version}" if user_model else "base"
 
         segments: list | None = None
+        visual_elements = []
         try:
             if has_openai():
                 openai_engine = get_openai_engine()
@@ -207,6 +208,7 @@ async def _run_ocr_on_page(page_id: int, user_id: int) -> None:
                     page.image_path, 0,
                 )
                 segments = gemini_result.segments
+                visual_elements = gemini_result.visual_elements
 
             if segments is None:
                 if not should_try_trocr_fallback():
@@ -290,6 +292,7 @@ async def _run_ocr_on_page(page_id: int, user_id: int) -> None:
                     engine.process_page,
                     page.image_path, 0, crop,
                 )
+                visual_elements = []
         except Exception:
             logger.exception("Gemini OCR failed for page %d; falling back to TrOCR", page_id)
             segments = None
@@ -380,6 +383,10 @@ async def _run_ocr_on_page(page_id: int, user_id: int) -> None:
                 return
 
         try:
+            # Re-processing replaces previously detected visual structures.
+            await db.execute(
+                VisualElement.__table__.delete().where(VisualElement.page_id == page.id)
+            )
             page_image = preprocess_image(page.image_path, rotation=0)
             ink_regions = InkLayerAnalyzer().analyze_image(page_image)
 
@@ -433,6 +440,23 @@ async def _run_ocr_on_page(page_id: int, user_id: int) -> None:
                     logger.warning(
                         "Failed to index OCR result %d", ocr_row.id, exc_info=True,
                     )
+
+            # Persist non-text structures separately from OCR text.
+            for element in visual_elements:
+                db.add(
+                    VisualElement(
+                        page_id=page.id,
+                        element_type=element.element_type,
+                        bbox_x=element.bbox[0],
+                        bbox_y=element.bbox[1],
+                        bbox_w=element.bbox[2],
+                        bbox_h=element.bbox[3],
+                        confidence=element.confidence,
+                        label=element.label,
+                        geometry=element.geometry,
+                        metadata=element.metadata,
+                    )
+                )
 
             page.processing_status = "done"
         except Exception:
