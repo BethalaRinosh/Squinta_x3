@@ -725,16 +725,16 @@ export default function DocumentView() {
         <div className="lg:col-span-4">
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden sticky top-20">
             <div className="px-4 py-3 border-b border-gray-100">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="text-sm font-semibold text-gray-700">OCR Results</h2>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-sm font-semibold text-gray-700 shrink-0">OCR Results</h2>
                 {results.length > 0 && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center justify-end gap-1.5 min-w-0">
                     <button
                       type="button"
                       onClick={() => setRemoveStrikeOffs((enabled) => !enabled)}
                       aria-pressed={removeStrikeOffs}
                       title="Toggle whether detected struck-through text is hidden"
-                      className={"inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-medium transition-colors " + (
+                      className={"inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-1.5 text-[11px] font-medium transition-colors " + (
                         removeStrikeOffs
                           ? "border-primary-300 bg-primary-50 text-primary-700"
                           : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
