@@ -84,6 +84,10 @@ docker compose up --build
 
 Gemini OCR requests are bounded by a client-side timeout, and structured OCR output is capped at a practical size with JSON response mode enabled. This prevents a stalled vision request from leaving a page in `processing` indefinitely. Visual-only detections are also preserved when a page contains structures but no recognized text.
 
+### Visual-element API compatibility
+
+The visual-structure persistence layer now maps the SQLAlchemy `element_metadata` attribute to the public `metadata` API field correctly, and page endpoints eagerly load visual elements to avoid async lazy-loading failures.
+
 ## Audit Status
 
 A source-level audit has been completed across the backend, frontend, OCR pipeline, configuration, authentication, storage, Docker setup, and repository hygiene. No remaining occurrences were found for the known branding mismatch, leaked key pattern, unsupported Gemini thinking configuration, Windows filesystem URL pattern, or invalid FastAPI background-task default.
