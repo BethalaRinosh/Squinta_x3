@@ -342,3 +342,7 @@ OCR now defaults to a fast mode that focuses on handwritten text, text positions
 The document OCR panel now includes a **Formatted** view that reconstructs line breaks, horizontal spacing, indentation, and rough column structure from each OCR result's bounding-box position. The original result list remains available under **Results**. This is a layout reconstruction layer, not a claim of exact table/diagram recovery.
 
 The Formatted view also preserves detected table structure: table borders and detected internal row/column dividers are rendered around OCR text assigned to their corresponding cells. Exact table geometry still depends on the optional Detailed visuals detection pass.
+
+
+### Frontend build fix
+Fixed malformed escaped template literals in the Formatted/Results OCR view toggle that caused Vite/Babel to fail parsing `DocumentView.jsx`.
