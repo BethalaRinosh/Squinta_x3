@@ -331,3 +331,8 @@ Squinta now asks the vision OCR pipeline to detect meaningful non-text handwriti
 \n### Visual geometry alignment
 
 Visual-element overlays now use the detected geometry rather than drawing generic CSS rectangles or horizontal arrows. Table geometry is now recovered independently from long page-level strokes when Gemini's table bbox is displaced, and the viewer only draws divider lines that are actually detected in the image instead of manufacturing a regular grid. Gemini is prompted to return ordered points for arrows, connectors, underlines, brackets, boxes, circles, and tables; the backend converts those points to image-pixel coordinates and conservatively refines strong straight edges/quadrilaterals with OpenCV. The frontend renders the resulting paths, skewed outlines, ellipses, and perspective-aware table grids in an SVG overlay. Legacy normalized geometry remains supported.
+
+
+### OCR visual modes
+
+OCR now defaults to a fast mode that focuses on handwritten text, text positions, and arrows. The Document View includes a **Detailed visuals** toggle. Turn it on before processing when you need tables, boxes, circles, brackets, underlines, connectors, and diagrams. The setting is remembered in the browser, while new uploads default to the faster mode.
