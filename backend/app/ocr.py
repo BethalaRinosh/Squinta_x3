@@ -839,15 +839,27 @@ class GeminiOcrEngine:
         from google import genai
         from google.genai import types
 
-        # Keep OCR requests bounded. A hung Gemini request must not leave a
-        # page stuck in "processing" forever.
+        api_key = (settings.GEMINI_API_KEY or "").strip()
+        if not api_key or api_key.lower() == "your-gemini-api-key":
+            raise RuntimeError(
+                "GEMINI_API_KEY is not configured. Create a Gemini API key in "
+                "Google AI Studio and set GEMINI_API_KEY in the project .env file."
+            )
+
+        # Gemini OCR must use an API key explicitly. Do not let the Google
+        # GenAI SDK fall back to ambient OAuth credentials, which produces
+        # 401 ACCESS_TOKEN_TYPE_UNSUPPORTED against the Gemini API.
         self.client = genai.Client(
-            api_key=settings.GEMINI_API_KEY,
+            api_key=api_key,
+            vertexai=False,
             http_options=types.HttpOptions(timeout=30000),
         )
-        # Use a model currently available to new Gemini API keys; 2.5 flash
-        # variants are no longer available for new users.
-        self.model_name = "gemini-3.5-flash-lite"
+        # Keep the model configurable so a newly released/retired model does
+        # not require another source-code change.
+        self.model_name = (
+            (getattr(settings, "GEMINI_MODEL", "") or "").strip()
+            or "gemini-3.5-flash-lite"
+        )
         logger.info("Gemini OCR engine initialized (%s)", self.model_name)
 
     def _call(self, prompt: str, image: Image.Image, max_tokens: int = 8192, temperature: float = 0.0) -> str:
