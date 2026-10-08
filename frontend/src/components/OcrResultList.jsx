@@ -6,6 +6,8 @@ export default function OcrResultList({
   selectedResultId,
   onSelectResult,
   onCorrect,
+  onSpeak,
+  speakingResultId,
 }) {
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState('');
@@ -120,6 +122,29 @@ export default function OcrResultList({
                 </div>
               )}
               <div className="flex items-center gap-1.5 shrink-0">
+                {!isEditing && result.text && onSpeak && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSpeak(result);
+                    }}
+                    className={"p-1 transition-colors " + (speakingResultId === result.id ? "text-primary-600" : "text-gray-400 hover:text-primary-600")}
+                    title={speakingResultId === result.id ? "Stop reading" : "Read this line aloud"}
+                    aria-label={speakingResultId === result.id ? "Stop reading" : "Read this line aloud"}
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      {speakingResultId === result.id ? (
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 6h12v12H6z" />
+                      ) : (
+                        <>
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5L6 9H3v6h3l5 4V5z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.5 8.5a5 5 0 010 7M18.5 6a8 8 0 010 12" />
+                        </>
+                      )}
+                    </svg>
+                  </button>
+                )}
                 <ConfidenceBadge confidence={result.confidence ?? 0} />
                 {!isEditing && (
                   <button
