@@ -420,4 +420,5 @@ The detection is intentionally conservative: it uses explicit naming phrases and
 - Fixed a Gemini structured-page OCR path that assigned every recognized line a hard-coded `95%`, bypassing the confidence estimator.
 - The displayed percentage is now a **heuristic reliability score**, based on the model prior, transcription length, visible ink in the OCR crop, expected ink support, and explicit uncertainty markers.
 - Blank or nearly blank crops are capped at a low score. This score is not a statistically calibrated probability that every character is correct; calibration against a labeled test set is required before interpreting it as exact accuracy.
-- Re-process existing pages to replace previously stored confidence values. Run `pytest backend/tests/test_ocr_confidence.py` from the repository root to test the scoring behavior.
+- Explicitly re-running OCR on a completed page now clears its old OCR and visual-element rows and processes it again, so saved scores do not silently survive a scoring-code update. Pages already marked `processing` remain protected against duplicate concurrent runs.
+- Run `pytest backend/tests/test_ocr_confidence.py` and `pytest backend/tests/test_ocr_reprocessing.py` from the repository root to test confidence scoring and reprocessing eligibility.
