@@ -127,9 +127,8 @@ async def search(
     try:
         query = parser.parse(q.strip())
     except Exception:
-        # Treat parser syntax errors as a literal search rather than returning 500.
-        from whoosh.qparser import QueryParser
-        query = QueryParser("text", schema=ix.schema).parse(QueryParser.escape(q.strip()))
+        # Malformed Whoosh syntax should not turn a user query into a server error.
+        return SearchResponse(query=q, total=0, results=[])
 
     matching_ids: list[int] = []
 
@@ -151,7 +150,7 @@ async def search(
 
     # Hydrate from the database to get full info.
     stmt = (
-        select(OcrResult, Page.image_path, Document.id.label("doc_id"), Document.name.label("doc_name"))
+        select(OcrResult, Page.image_path, Page.page_number, Document.id.label("doc_id"), Document.name.label("doc_name"))
         .join(Page, OcrResult.page_id == Page.id)
         .join(Document, Page.document_id == Document.id)
         .where(
@@ -170,6 +169,7 @@ async def search(
         SearchResult(
             ocr_result_id=ocr.id,
             page_id=ocr.page_id,
+            page_number=page_number,
             page_image_path=image_path,
             document_id=doc_id,
             document_name=doc_name,
@@ -180,7 +180,7 @@ async def search(
             bbox_w=ocr.bbox_w,
             bbox_h=ocr.bbox_h,
         )
-        for ocr, image_path, doc_id, doc_name in rows_sorted
+        for ocr, image_path, page_number, doc_id, doc_name in rows_sorted
     ]
 
     return SearchResponse(query=q, total=len(search_results), results=search_results)
