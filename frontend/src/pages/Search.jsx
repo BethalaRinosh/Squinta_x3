@@ -22,15 +22,15 @@ function highlightMatch(text, query) {
 function SearchResultCard({ result, query }) {
   return (
     <Link
-      to={`/documents/${result.document_id}?page=${result.page_index ?? result.page_number ?? 0}`}
+      to={`/documents/${result.document_id}?page=${Math.max(0, (result.page_number ?? 1) - 1)}`}
       className="block bg-white rounded-xl border border-gray-200 hover:border-primary-300 hover:shadow-md transition-all p-4"
     >
       <div className="flex gap-4">
         {/* Thumbnail */}
-        {result.thumbnail_url && (
+        {result.page_image_path && (
           <div className="shrink-0 w-16 h-20 rounded-lg overflow-hidden border border-gray-200 bg-gray-100">
             <img
-              src={result.thumbnail_url}
+              src={result.page_image_path.startsWith('/api/') ? result.page_image_path : `/api/${result.page_image_path.replace(/^\.\/?/, '').replace(/^data\//, '')}`}
               alt=""
               className="w-full h-full object-cover"
               loading="lazy"
@@ -44,9 +44,9 @@ function SearchResultCard({ result, query }) {
             <span className="text-xs font-medium text-gray-500 truncate">
               {result.document_name || result.document_title || 'Document'}
             </span>
-            {(result.page_index !== undefined || result.page_number !== undefined) && (
+            {result.page_number !== undefined && (
               <span className="text-xs text-gray-400">
-                p. {(result.page_index ?? result.page_number ?? 0) + 1}
+                p. {result.page_number}
               </span>
             )}
             {result.confidence !== undefined && (
@@ -142,6 +142,8 @@ export default function Search() {
             Type at least 2 characters to search
           </p>
         </div>
+      ) : debouncedQuery.length < 2 ? (
+        <div className="text-center py-12 text-sm text-gray-400">Type at least 2 characters to search.</div>
       ) : isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
@@ -176,7 +178,7 @@ export default function Search() {
       ) : (
         <div>
           <p className="text-xs text-gray-400 mb-3">
-            {items.length} result{items.length !== 1 ? 's' : ''} found
+            {results?.total ?? items.length} result{(results?.total ?? items.length) !== 1 ? 's' : ''} found
           </p>
           <div className="space-y-3">
             {items.map((result, i) => (
