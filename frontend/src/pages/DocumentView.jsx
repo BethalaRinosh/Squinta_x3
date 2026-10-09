@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getDocument, processDocument, processPage, getResults,
@@ -14,9 +14,13 @@ import StructuredOcrView from '../components/StructuredOcrView';
 export default function DocumentView() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const toast = useToast();
   const queryClient = useQueryClient();
-  const [selectedPageIndex, setSelectedPageIndex] = useState(0);
+  const [selectedPageIndex, setSelectedPageIndex] = useState(() => {
+    const requestedPage = Number.parseInt(new URLSearchParams(window.location.search).get('page') || '0', 10);
+    return Number.isFinite(requestedPage) && requestedPage >= 0 ? requestedPage : 0;
+  });
   const [selectedResultId, setSelectedResultId] = useState(null);
   const [drawMode, setDrawMode] = useState(false);
   const [cropMode, setCropMode] = useState(false);
@@ -55,6 +59,12 @@ export default function DocumentView() {
   });
 
   const pages = doc?.pages || [];
+  const requestedPage = Number.parseInt(searchParams.get('page') || '0', 10);
+  useEffect(() => {
+    if (pages.length && Number.isFinite(requestedPage) && requestedPage >= 0 && requestedPage < pages.length) {
+      setSelectedPageIndex(requestedPage);
+    }
+  }, [id, pages.length, requestedPage]);
   const currentPage = pages[selectedPageIndex];
   const currentPageId = currentPage?.id;
 
