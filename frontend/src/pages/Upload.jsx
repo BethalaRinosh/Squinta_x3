@@ -244,7 +244,7 @@ export default function Upload() {
             {isDragging ? 'Drop files here' : 'Drag and drop files here'}
           </p>
           <p className="text-sm text-gray-400 mb-4">
-            Supports images (JPG, PNG, HEIC) and PDFs
+            Supports JPG, PNG, WEBP, TIFF, GIF and HEIC images. PDF upload is not supported yet.
           </p>
           <button
             onClick={() => fileInputRef.current?.click()}
