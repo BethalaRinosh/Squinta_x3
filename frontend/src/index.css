@@ -112,3 +112,130 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #9ca3af;
 }
+
+/* Mobile and narrow-screen layout hardening */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+}
+
+body {
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+label,
+select {
+  touch-action: manipulation;
+}
+
+pre,
+code,
+.whitespace-pre-line,
+.break-words {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.document-view-page {
+  min-width: 0;
+}
+
+.document-view-header > * {
+  min-width: 0;
+}
+
+.ocr-results-column,
+.ocr-results-card {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.ocr-results-scroll {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 1023px) {
+  .document-view-page {
+    padding: 1rem 0.875rem;
+  }
+
+  .document-view-header {
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .document-view-header > .flex:last-child {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .ocr-results-card {
+    position: static !important;
+  }
+
+  .ocr-results-scroll {
+    max-height: min(65vh, 34rem);
+  }
+}
+
+@media (max-width: 640px) {
+  .document-view-page {
+    padding: 0.75rem 0.625rem;
+  }
+
+  .document-view-header {
+    flex-direction: column;
+  }
+
+  .document-view-header > .flex:last-child {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .document-view-header > .flex:last-child > button {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .ocr-results-card .whitespace-pre-line,
+  .ocr-results-card p {
+    overflow-wrap: anywhere;
+  }
+
+  .ocr-results-card select,
+  .ocr-results-card button {
+    max-width: 100%;
+  }
+
+  .ocr-results-card [class*="flex"] {
+    min-width: 0;
+  }
+}
+
