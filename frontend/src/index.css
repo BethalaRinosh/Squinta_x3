@@ -239,3 +239,44 @@ code,
   }
 }
 
+/* Phone-sized formatted OCR: preserve page coordinates without making text
+   spill out of its bounding box or leaving mobile-only controls invisible. */
+.structured-ocr-canvas {
+  isolation: isolate;
+}
+
+.structured-ocr-text-item {
+  min-width: 0;
+}
+
+.structured-ocr-text {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: clip;
+  font-size-adjust: none;
+  line-height: 1.15;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 640px) {
+  .structured-ocr-canvas {
+    border-radius: 0.5rem;
+    box-shadow: none;
+  }
+
+  .structured-ocr-text-item {
+    overflow: visible;
+  }
+
+  .structured-ocr-text {
+    padding: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.15;
+  }
+
+  .document-view-page .grid {
+    min-width: 0;
+  }
+}
+
