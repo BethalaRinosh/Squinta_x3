@@ -140,9 +140,9 @@ export default function DocumentView() {
           : Array.isArray(ocrResults?.text)
             ? ocrResults.text
             : ocrResults && typeof ocrResults === 'object'
-                && (typeof ocrResults.text === 'string'
-                  || typeof ocrResults.transcription === 'string'
-                  || typeof ocrResults.content === 'string')
+              && (typeof ocrResults.text === 'string'
+                || typeof ocrResults.transcription === 'string'
+                || typeof ocrResults.content === 'string')
               ? [ocrResults]
               : [];
   const results = resultsPayload
