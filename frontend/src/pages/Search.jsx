@@ -22,7 +22,7 @@ function highlightMatch(text, query) {
 function SearchResultCard({ result, query }) {
   return (
     <Link
-      to={`/documents/${result.document_id}?page=${result.page_index ?? result.page_number ?? 0}`}
+      to={`/documents/${result.document_id}?page=${Math.max(0, Number(result.page_index ?? result.page_number ?? 1) - 1)}`}
       className="block bg-white rounded-xl border border-gray-200 hover:border-primary-300 hover:shadow-md transition-all p-4"
     >
       <div className="flex gap-4">
@@ -46,7 +46,7 @@ function SearchResultCard({ result, query }) {
             </span>
             {(result.page_index !== undefined || result.page_number !== undefined) && (
               <span className="text-xs text-gray-400">
-                p. {(result.page_index ?? result.page_number ?? 0) + 1}
+                Page {result.page_number ?? result.page_index ?? result.page_id}
               </span>
             )}
             {result.confidence !== undefined && (
@@ -180,7 +180,7 @@ export default function Search() {
           </p>
           <div className="space-y-3">
             {items.map((result, i) => (
-              <SearchResultCard key={result.id || i} result={result} query={debouncedQuery} />
+              <SearchResultCard key={result.ocr_result_id || result.id || i} result={result} query={debouncedQuery} />
             ))}
           </div>
         </div>
