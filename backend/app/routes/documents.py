@@ -150,8 +150,27 @@ async def upload_document(
 
     import logging
     logger = logging.getLogger(__name__)
-    for f in files:
-        logger.warning(f"Upload received: filename={f.filename!r}, content_type={f.content_type!r}")
+    for upload_file in files:
+        logger.info(
+            "Upload received: filename=%r, content_type=%r",
+            upload_file.filename,
+            upload_file.content_type,
+        )
+
+    # Validate every filename before creating database rows or writing files,
+    # so one unsupported file cannot leave a partial document behind.
+    extensions = [
+        _validate_image_extension(upload_file.filename or "image.png")
+        for upload_file in files
+    ]
+
+    # PDF files are listed in the UI but are not rasterized by this pipeline.
+    # Reject them clearly instead of accepting files that OCR cannot read.
+    if any(ext == ".pdf" for ext in extensions):
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="PDF upload is not available yet. Export each PDF page as PNG or JPG and upload the images.",
+        )
 
     # Default name = first filename without extension.
     doc_name = name.strip() or os.path.splitext(files[0].filename or "untitled")[0]
@@ -163,7 +182,7 @@ async def upload_document(
     upload_dir = _user_upload_dir(current_user.id)
 
     for idx, upload_file in enumerate(files):
-        ext = _validate_image_extension(upload_file.filename or "image.png")
+        ext = extensions[idx]
         unique_name = f"{uuid.uuid4().hex}{ext}"
         dest = os.path.join(upload_dir, unique_name)
         await _save_upload_file(upload_file, dest)
@@ -233,19 +252,46 @@ async def camera_capture(
         header = ""
 
     try:
-        img_bytes = base64.b64decode(raw)
+        img_bytes = base64.b64decode(raw, validate=True)
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid base64 image data",
         ) from exc
 
-    # Guess extension from data-URI header, default to .png.
-    ext = ".png"
-    if "jpeg" in header or "jpg" in header:
-        ext = ".jpg"
-    elif "webp" in header:
-        ext = ".webp"
+    # Prevent accidental or malicious oversized camera uploads.
+    max_camera_bytes = 15 * 1024 * 1024
+    if not img_bytes or len(img_bytes) > max_camera_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Camera image must be between 1 byte and 15 MB.",
+        )
+
+    # Verify the payload is an actual supported image before writing to disk.
+    from io import BytesIO
+    from PIL import Image
+    try:
+        with Image.open(BytesIO(img_bytes)) as image:
+            image.verify()
+            image_format = (image.format or "").upper()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Camera payload is not a valid image.",
+        ) from exc
+
+    allowed_formats = {"PNG", "JPEG", "WEBP", "BMP", "TIFF", "GIF"}
+    if image_format not in allowed_formats:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Unsupported camera image format.",
+        )
+
+    # Use the verified payload format as a fallback, not just caller-provided MIME text.
+    ext = {
+        "PNG": ".png", "JPEG": ".jpg", "WEBP": ".webp",
+        "BMP": ".bmp", "TIFF": ".tiff", "GIF": ".gif",
+    }[image_format]
 
     upload_dir = _user_upload_dir(current_user.id)
     unique_name = f"{uuid.uuid4().hex}{ext}"
@@ -267,8 +313,8 @@ async def camera_capture(
     # Auto-trigger OCR.
     from app.routes.ocr import _run_ocr_on_page
     page.processing_status = "processing"
+    await db.commit()
     background_tasks.add_task(_run_ocr_on_page, page.id, current_user.id)
-    await db.flush()
 
     stmt = (
         select(Document)
