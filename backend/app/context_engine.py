@@ -116,47 +116,100 @@ DOMAIN_PROFILES: tuple[DomainProfile, ...] = (
 
 
 def _normalise(text: str) -> str:
-    return re.sub(r"[^a-z0-9%+./-]+", " ", text.lower()).strip()
+    """Normalize text while keeping clinically useful symbols and word boundaries."""
+    return re.sub(r"[^a-z0-9%+./-]+", " ", (text or "").lower()).strip()
 
 
 def _tokenise(text: str) -> set[str]:
-    return {t for t in _normalise(text).split() if len(t) > 2}
+    """Return meaningful tokens; short units are retained when medically useful."""
+    return {token for token in _normalise(text).split() if len(token) > 2}
+
+
+def _contains_term(text: str, term: str) -> bool:
+    """Match a whole term or phrase, not an arbitrary substring."""
+    normalized_text = _normalise(text)
+    normalized_term = _normalise(term)
+    if not normalized_text or not normalized_term:
+        return False
+    return bool(re.search(
+        rf"(?<![a-z0-9]){re.escape(normalized_term)}(?![a-z0-9])",
+        normalized_text,
+    ))
+
+
+def _profile_evidence(profile: DomainProfile, text: str) -> dict:
+    """Collect distinct weighted signals for a domain without double-counting fragments."""
+    alias_hits = [alias for alias in profile.aliases if _contains_term(text, alias)]
+    vocabulary_hits = [
+        term for term in profile.vocabulary
+        if _contains_term(text, term)
+    ]
+
+    # A domain label or explicit document type is strong evidence. A single
+    # generic vocabulary word is weak evidence; multi-word terms are more specific.
+    alias_score = sum(3.0 if len(_normalise(alias).split()) > 1 else 2.4 for alias in alias_hits)
+    vocabulary_score = sum(
+        1.8 if len(_normalise(term).split()) > 1 else 1.0
+        for term in vocabulary_hits
+    )
+    total = alias_score + vocabulary_score
+    return {
+        "score": total,
+        "alias_hits": alias_hits,
+        "vocabulary_hits": vocabulary_hits,
+        "signal_count": len(alias_hits) + len(vocabulary_hits),
+    }
 
 
 def _profile_score(profile: DomainProfile, text: str) -> float:
-    normalised = _normalise(text)
-    tokens = _tokenise(text)
-    if not tokens:
+    """Compatibility helper returning a length-normalized evidence score."""
+    evidence = _profile_evidence(profile, text)
+    token_count = max(1, len(_normalise(text).split()))
+    return evidence["score"] / max(1.0, min(10.0, token_count * 0.22))
+
+
+def _confidence_from_evidence(best: dict, runner_up_score: float, token_count: int) -> float:
+    """Conservative confidence based on amount and distinctiveness of evidence."""
+    score = float(best["score"])
+    signals = int(best["signal_count"])
+    if score <= 0 or signals == 0:
         return 0.0
 
-    alias_hits = sum(1 for alias in profile.aliases if _normalise(alias) in normalised)
-    vocab_hits = sum(
-        1 for term in profile.vocabulary
-        if _normalise(term) in normalised or bool(_tokenise(term) & tokens)
-    )
+    # Require more than one weak clue. Strong explicit aliases can still
+    # identify short forms such as "medical prescription".
+    evidence_strength = min(1.0, score / 5.0)
+    evidence_breadth = min(1.0, signals / 3.0)
+    separation = max(0.0, min(1.0, (score - runner_up_score) / max(score, 1.0)))
+    confidence = 0.55 * evidence_strength + 0.25 * evidence_breadth + 0.20 * separation
 
-    # Alias signals are strong. Vocabulary gives broad context.
-    raw = alias_hits * 3.0 + vocab_hits
-    return raw / max(1.0, min(12.0, len(tokens) * 0.35))
+    if signals == 1 and score < 2.4:
+        confidence = min(confidence, 0.35)
+    if signals == 1 and token_count <= 3:
+        confidence = min(confidence, 0.60)
+    return round(max(0.0, min(1.0, confidence)), 4)
 
 
 def detect_domain(text: str, minimum_score: float = 0.55) -> tuple[str, float]:
-    """Return (domain, confidence). Falls back to general."""
+    """Return (domain, confidence), using conservative, phrase-aware evidence."""
     if not text or not text.strip():
         return "general", 0.0
 
-    scored = sorted(
-        ((profile.name, _profile_score(profile, text)) for profile in DOMAIN_PROFILES),
-        key=lambda item: item[1],
-        reverse=True,
-    )
-    if not scored or scored[0][1] < minimum_score:
+    evidence = [
+        (profile, _profile_evidence(profile, text))
+        for profile in DOMAIN_PROFILES
+    ]
+    evidence.sort(key=lambda item: item[1]["score"], reverse=True)
+    if not evidence or evidence[0][1]["score"] <= 0:
         return "general", 0.0
 
-    best_name, best_raw = scored[0]
-    confidence = max(0.0, min(1.0, best_raw / 3.0))
-    return best_name, confidence
-
+    best_profile, best = evidence[0]
+    runner_up_score = evidence[1][1]["score"] if len(evidence) > 1 else 0.0
+    confidence = _confidence_from_evidence(
+        best, runner_up_score, len(_normalise(text).split())
+    )
+    if confidence < minimum_score:
+        return "general", 0.0
+    return best_profile.name, confidence
 
 def get_profile(domain: str) -> DomainProfile | None:
     domain = (domain or "").strip().lower()
@@ -188,42 +241,117 @@ def select_vocabulary(text: str, domain: str, limit: int = 24) -> list[str]:
 
 
 def build_context(text: str, forced_domain: str | None = None) -> dict:
-    """Build a compact, JSON-friendly context payload."""
-    if forced_domain and forced_domain.lower() != "auto":
-        domain = forced_domain.lower()
+    """Build a compact context payload with evidence and ambiguity diagnostics."""
+    normalized_forced = (forced_domain or "").strip().lower()
+    evidence = [
+        (profile, _profile_evidence(profile, text))
+        for profile in DOMAIN_PROFILES
+    ]
+    evidence.sort(key=lambda item: item[1]["score"], reverse=True)
+
+    if normalized_forced and normalized_forced != "auto":
+        profile = get_profile(normalized_forced)
+        if profile is None:
+            return {
+                "domain": "general",
+                "confidence": 0.0,
+                "context": "General handwriting OCR. Transcribe only what is visually supported.",
+                "vocabulary": [],
+                "evidence": [],
+                "alternatives": [],
+                "forced": False,
+            }
+        domain = profile.name
         confidence = 1.0
+        best_evidence = next((item[1] for item in evidence if item[0].name == domain), {})
+        forced = True
     else:
-        domain, confidence = detect_domain(text)
+        if not evidence or evidence[0][1]["score"] <= 0:
+            return {
+                "domain": "general",
+                "confidence": 0.0,
+                "context": "General handwriting OCR. Transcribe only what is visually supported.",
+                "vocabulary": [],
+                "evidence": [],
+                "alternatives": [],
+                "forced": False,
+            }
+        best_profile, best_evidence = evidence[0]
+        runner_up_score = evidence[1][1]["score"] if len(evidence) > 1 else 0.0
+        confidence = _confidence_from_evidence(
+            best_evidence, runner_up_score, len(_normalise(text).split())
+        )
+        if confidence < 0.55:
+            return {
+                "domain": "general",
+                "confidence": round(confidence, 4),
+                "context": "Domain evidence is weak or ambiguous. Transcribe conservatively without assuming a specialist domain.",
+                "vocabulary": [],
+                "evidence": [],
+                "alternatives": [
+                    {"domain": profile.name, "score": round(float(item["score"]), 2)}
+                    for profile, item in evidence[:2] if item["score"] > 0
+                ],
+                "forced": False,
+            }
+        domain = best_profile.name
+        forced = False
 
     profile = get_profile(domain)
     if profile is None:
         return {
             "domain": "general",
-            "confidence": round(confidence, 4),
+            "confidence": 0.0,
             "context": "General handwriting OCR. Transcribe only what is visually supported.",
             "vocabulary": [],
+            "evidence": [],
+            "alternatives": [],
+            "forced": False,
         }
 
     terms = select_vocabulary(text, domain)
+    runner_up_score = next(
+        (float(item["score"]) for other_profile, item in evidence if other_profile.name != domain),
+        0.0,
+    )
     return {
         "domain": domain,
         "confidence": round(confidence, 4),
         "context": profile.context,
-        "vocabulary": terms or list(profile.vocabulary[:24]),
+        "vocabulary": terms or list(profile.vocabulary[:12]),
+        "evidence": list(dict.fromkeys(
+            best_evidence.get("alias_hits", []) + best_evidence.get("vocabulary_hits", [])
+        ))[:12],
+        "alternatives": [
+            {"domain": other_profile.name, "score": round(float(item["score"]), 2)}
+            for other_profile, item in evidence if other_profile.name != domain and item["score"] > 0
+        ][:2],
+        "score_margin": round(float(best_evidence.get("score", 0.0)) - runner_up_score, 2),
+        "forced": forced,
     }
 
-
 def build_context_prompt(text: str, context: dict) -> str:
-    """Turn context data into safe instructions for a downstream LLM."""
+    """Render bounded, evidence-backed guidance for a downstream vision model."""
     domain = context.get("domain", "general")
     confidence = float(context.get("confidence", 0.0))
     terms = context.get("vocabulary") or []
     guidance = context.get("context") or "Use only visually supported text."
+    evidence = context.get("evidence") or []
+    alternatives = context.get("alternatives") or []
+    evidence_text = ", ".join(str(term) for term in evidence[:12]) or "none"
+    alternatives_text = ", ".join(
+        f"{item.get('domain')} (evidence score {item.get('score')})"
+        for item in alternatives[:2]
+    ) or "none"
 
     return (
-        f"DOMAIN CONTEXT: {domain} (confidence {confidence:.2f})\n"
+        f"DOMAIN HYPOTHESIS: {domain} (confidence {confidence:.2f})\n"
         f"DOMAIN GUIDANCE: {guidance}\n"
-        f"RELEVANT VOCABULARY: {', '.join(terms[:24]) if terms else 'none'}\n"
-        "The domain context is a hint, not ground truth. Never replace a visually "
-        "uncertain word merely because a domain term would be plausible."
+        f"OBSERVED DOMAIN CLUES IN CANDIDATE: {evidence_text}\n"
+        f"RELEVANT VOCABULARY: {', '.join(str(term) for term in terms[:24]) if terms else 'none'}\n"
+        f"COMPETING DOMAINS: {alternatives_text}\n"
+        "Use this domain only as a spelling/terminology hint. The image is the source of truth. "
+        "Do not infer missing words, diagnoses, medicine names, doses, dates, names, or numbers. "
+        "Do not normalize or 'correct' a clinically plausible value unless the strokes in the image support it. "
+        "If the image cannot distinguish candidates, preserve uncertainty rather than selecting the most common term."
     )
