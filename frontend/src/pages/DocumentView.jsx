@@ -448,7 +448,7 @@ export default function DocumentView() {
 
   if (docLoading) {
     return (
-      <div className="max-w-6xl mx-auto px-4 py-6">
+      <div className="document-view-page max-w-6xl mx-auto px-4 py-6">
         <div className="skeleton h-8 w-48 mb-4" />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
