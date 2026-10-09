@@ -849,78 +849,92 @@ def _calculate_gemini_confidence(
     image: Image.Image,
     model_confidence: float | None = None,
 ) -> float:
-    """Estimate OCR reliability from observable evidence.
+    """Estimate transcription reliability from model and image evidence.
 
-    Gemini's numeric confidence is not a calibrated probability for this
-    structured OCR request, so it is treated as a weak prior rather than the
-    displayed score. The final value combines model prior, output completeness,
-    visible-ink evidence, and explicit uncertainty markers.
+    This is a heuristic reliability score, not a calibrated probability of
+    exact transcription. Gemini's stated confidence is only a weak prior.
     """
     import re
 
     clean = (text or "").strip()
-    if not clean:
+    if not clean or clean.upper() in {"EMPTY", "N/A", "NONE"}:
         return 0.0
 
-    prior = 0.5 if model_confidence is None else max(
+    prior = 0.50 if model_confidence is None else max(
         0.0, min(1.0, float(model_confidence))
     )
 
     gray = np.asarray(image.convert("L"))
     if gray.size == 0:
-        return round(prior, 4)
+        return 0.0
 
-    # Robust dark-ink estimate for camera photos with uneven lighting.
+    # Estimate foreground ink against a robust local-lightness baseline.
     gray_f = gray.astype(np.float32)
     median = float(np.median(gray_f))
     mad = float(np.median(np.abs(gray_f - median)))
-    threshold = max(80.0, median - max(18.0, 2.5 * mad))
-    ink_ratio = float(np.mean(gray_f < threshold))
+    threshold = max(60.0, median - max(14.0, 2.5 * mad))
+    ink_mask = gray_f < threshold
+    ink_ratio = float(np.mean(ink_mask))
 
     if ink_ratio < 0.001:
-        ink_score = 0.15
+        ink_score = 0.10
     elif ink_ratio < 0.004:
-        ink_score = 0.45
+        ink_score = 0.35
     elif ink_ratio < 0.08:
         ink_score = 0.85
     elif ink_ratio < 0.16:
-        ink_score = 0.70
+        ink_score = 0.65
     else:
-        ink_score = 0.40
+        ink_score = 0.30
 
-    chars = re.findall(r"[A-Za-z0-9\\u00C0-\\uFFFF]", clean)
-    char_count = len(chars)
+    # Short outputs are not automatically bad, but implausibly tiny text on
+    # a substantial ink region is less reliable than a well-supported result.
+    char_count = len(re.findall(r"[^\W_]", clean, flags=re.UNICODE))
     if char_count == 0:
-        completeness = 0.10
+        length_score = 0.05
     elif char_count < 3:
-        completeness = 0.35
+        length_score = 0.35
     elif char_count < 8:
-        completeness = 0.60
+        length_score = 0.58
     elif char_count < 18:
-        completeness = 0.78
+        length_score = 0.76
     else:
-        completeness = 0.90
+        length_score = 0.88
 
-    if clean.upper() in {"EMPTY", "N/A", "NONE", "[UNCERTAIN]"}:
-        completeness = 0.10
+    # Compare how much ink the OCR output could plausibly account for. This
+    # cannot prove correctness, but helps penalize empty/very short output
+    # when the image contains substantial writing.
+    ink_pixels = int(ink_mask.sum())
+    expected_ink = max(1, char_count) * max(1, image.width * image.height // 12000)
+    coverage_ratio = min(1.0, ink_pixels / expected_ink)
+    if char_count <= 2 and ink_ratio > 0.01:
+        coverage_score = 0.20
+    elif ink_pixels == 0:
+        coverage_score = 0.10
+    else:
+        coverage_score = 0.45 + 0.40 * coverage_ratio
 
-    uncertainty_hits = len(
-        re.findall(
-            r"\\[UNCERTAIN\\]|\\b(?:illegible|unclear|unknown)\\b",
-            clean,
-            re.I,
-        )
-    )
-    uncertainty_score = max(0.0, 1.0 - 0.20 * uncertainty_hits)
+    uncertainty_hits = len(re.findall(
+        r"\[UNCERTAIN\]|\b(?:illegible|unclear|unknown)\b",
+        clean,
+        flags=re.IGNORECASE,
+    ))
+    uncertainty_score = max(0.0, 1.0 - 0.25 * uncertainty_hits)
 
-    # Keep the model's own number weak. This prevents a fixed/optimistic
-    # model response from dominating the displayed reliability score.
+    # When image ink is essentially absent, avoid assigning a high score to
+    # text that may have been hallucinated from a blank/noisy crop.
     score = (
-        0.20 * prior
-        + 0.35 * completeness
-        + 0.30 * ink_score
+        0.15 * prior
+        + 0.25 * length_score
+        + 0.25 * ink_score
+        + 0.20 * coverage_score
         + 0.15 * uncertainty_score
     )
+    if ink_ratio < 0.001:
+        score = min(score, 0.35)
+    if uncertainty_hits:
+        score = min(score, 0.75)
+
     return round(max(0.0, min(1.0, score)), 4)
 
 
@@ -2288,9 +2302,15 @@ class GeminiOcrEngine:
                 bx = max(0, lx1 - hpad)
                 bw = min(img_w, lx2 + hpad) - bx
 
+            line_crop = image.crop((
+                max(0, bx),
+                max(0, by),
+                min(img_w, bx + bw),
+                min(img_h, by + bh),
+            ))
             segments.append(OcrSegment(
                 text=text,
-                confidence=0.95,
+                confidence=_calculate_gemini_confidence(text, line_crop),
                 bbox=(
                     bx + crop_offset_x,
                     by + crop_offset_y,
