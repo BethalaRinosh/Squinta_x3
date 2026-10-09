@@ -297,7 +297,7 @@ export default function StructuredOcrView({
                 type="button"
                 onClick={() => onSelectResult?.(result.id)}
                 className={
-                  'block overflow-visible whitespace-nowrap select-text text-left font-mono leading-none ' +
+                  'structured-ocr-text block overflow-visible whitespace-nowrap select-text text-left font-mono leading-none ' +
                   'rounded px-0.5 transition-colors hover:bg-primary-50 ' +
                   (isSelected ? 'bg-primary-100 text-primary-800' : 'text-gray-800')
                 }
