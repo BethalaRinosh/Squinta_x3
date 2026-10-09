@@ -307,3 +307,7 @@ code,
   }
 }
 
+/* Small, stable viewport support for phone browsers and forwarded ports. */
+@supports (width: 100dvw) {
+  html, body, #root { max-width: 100dvw; }
+}
