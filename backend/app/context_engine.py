@@ -189,7 +189,7 @@ def _confidence_from_evidence(best: dict, runner_up_score: float, token_count: i
     return round(max(0.0, min(1.0, confidence)), 4)
 
 
-def detect_domain(text: str, minimum_score: float = 0.55) -> tuple[str, float]:
+def detect_domain(text: str, minimum_score: float = 0.62) -> tuple[str, float]:
     """Return (domain, confidence), using conservative, phrase-aware evidence."""
     if not text or not text.strip():
         return "general", 0.0
@@ -281,7 +281,7 @@ def build_context(text: str, forced_domain: str | None = None) -> dict:
         confidence = _confidence_from_evidence(
             best_evidence, runner_up_score, len(_normalise(text).split())
         )
-        if confidence < 0.55:
+        if confidence < 0.62:
             return {
                 "domain": "general",
                 "confidence": round(confidence, 4),
