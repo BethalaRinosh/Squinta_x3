@@ -394,6 +394,12 @@ After OCR finishes, the Document View shows an **AI Summary** button in the OCR 
 
 The feature uses the existing `GEMINI_API_KEY` and `GEMINI_MODEL` settings. No additional API key or dependency is required.
 
+## Full-text search reliability
+
+- Search uses the backend's stable data-directory path so it does not silently create a second empty Whoosh index when the app is launched from another working directory.
+- Search rebuilds the current user's Whoosh entries from saved OCR rows when the index has no matches, so existing documents remain searchable after a deployment or index loss.
+- Search results now include the stored page number, and the search page uses it when opening the matching document.
+
 ## Stability pass
 
 The current build includes a focused reliability pass covering frontend search highlighting, Google Photos background OCR transaction ordering, and OCR processing-status polling. Existing OCR, translation, summaries, speech playback, correction, training, and visual-structure features are preserved.
