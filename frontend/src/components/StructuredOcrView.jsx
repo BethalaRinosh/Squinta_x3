@@ -118,7 +118,7 @@ export default function StructuredOcrView({
       </div>
 
       <div
-        className="relative w-full overflow-hidden rounded-lg border border-gray-300 bg-white shadow-sm"
+        className="structured-ocr-canvas relative w-full overflow-hidden rounded-lg border border-gray-300 bg-white shadow-sm"
         style={{ aspectRatio: pageSize.width + ' / ' + pageSize.height }}
       >
         <svg
@@ -285,7 +285,7 @@ export default function StructuredOcrView({
           return (
             <div
               key={result.id}
-              className="absolute group"
+              className="structured-ocr-text-item absolute group"
               style={{
                 left: (result.x * sx) + '%',
                 top: (result.y * sy) + '%',
