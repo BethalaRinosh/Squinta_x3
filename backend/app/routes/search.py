@@ -10,6 +10,7 @@ from whoosh import index as whoosh_index
 from whoosh.analysis import StemmingAnalyzer
 from whoosh.fields import ID, TEXT, Schema
 from whoosh.qparser import MultifieldParser, OrGroup
+from whoosh import query as whoosh_query
 
 from app.auth import get_current_user
 from app.database import get_db
@@ -142,7 +143,7 @@ async def search(
         with index.searcher() as searcher:
             hits = searcher.search(
                 parsed_query,
-                filter=__import__("whoosh.query", fromlist=["Term"]).Term("user_id", str(current_user.id)),
+                filter=whoosh_query.Term("user_id", str(current_user.id)),
                 limit=limit,
             )
             return [int(hit["ocr_result_id"]) for hit in hits]
