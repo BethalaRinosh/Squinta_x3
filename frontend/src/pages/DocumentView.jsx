@@ -137,9 +137,14 @@ export default function DocumentView() {
         ? ocrResults.items
         : Array.isArray(ocrResults?.data)
           ? ocrResults.data
-          : ocrResults && typeof ocrResults === 'object' && typeof ocrResults.text === 'string'
-            ? [ocrResults]
-            : [];
+          : Array.isArray(ocrResults?.text)
+            ? ocrResults.text
+            : ocrResults && typeof ocrResults === 'object'
+                && (typeof ocrResults.text === 'string'
+                  || typeof ocrResults.transcription === 'string'
+                  || typeof ocrResults.content === 'string')
+              ? [ocrResults]
+              : [];
   const results = resultsPayload
     .map((result, index) => {
       if (typeof result === 'string') {
@@ -154,7 +159,9 @@ export default function DocumentView() {
           ? result.transcription
           : typeof result.content === 'string'
             ? result.content
-            : '';
+            : typeof result.value === 'string'
+              ? result.value
+              : '';
       return { ...result, id: result.id ?? `ocr-text-${index}`, text: textValue };
     })
     .filter((result) => result && result.text.trim());
