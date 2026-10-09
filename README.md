@@ -422,3 +422,18 @@ The detection is intentionally conservative: it uses explicit naming phrases and
 - Blank or nearly blank crops are capped at a low score. This score is not a statistically calibrated probability that every character is correct; calibration against a labeled test set is required before interpreting it as exact accuracy.
 - Explicitly re-running OCR on a completed page now clears its old OCR and visual-element rows and processes it again, so saved scores do not silently survive a scoring-code update. Pages already marked `processing` remain protected against duplicate concurrent runs.
 - Run `pytest backend/tests/test_ocr_confidence.py` and `pytest backend/tests/test_ocr_reprocessing.py` from the repository root to test confidence scoring and reprocessing eligibility.
+
+
+### Final hardening pass (2026-10-09)
+
+- Fixed the search API/UI contract: search responses now include a browser-safe thumbnail URL and the one-based page number, and the UI uses the OCR result ID consistently.
+- Search results are filtered by user identity before applying the result limit, so other users' matches cannot crowd out this user's results. Search index storage is anchored to the repository data directory rather than whichever working directory launched the server.
+- Search syntax errors now return an empty result set rather than a server error.
+- Search links now open the requested page in Document View, and page navigation keeps the URL in sync.
+- FastAPI now accepts the frontend's `/api/*` paths when serving the built SPA from Docker. The Vite development proxy continues to work as before.
+- Upload validation runs before creating a document, and camera capture checks base64, image content, and a 15 MB size limit before it writes to disk.
+- The current OCR pipeline does not rasterize PDF files. Uploading a PDF now returns a clear unsupported-format response instead of pretending it can be OCR'd; export its pages to PNG/JPG and upload those images.
+- Added GitHub Actions checks for backend tests and the frontend production build.
+- Refined global UI defaults with neutral surfaces, clearer keyboard focus, reduced motion for accessibility, and less animated skeleton loading.
+
+**Validation status:** These are source-reviewed changes on a separate branch. They have not yet been validated by a completed GitHub Actions run or by exercising Google OAuth, Google Photos, Gemini/OpenAI OCR, local camera access, and mobile layouts with real credentials/devices. Do not treat the work as proof that every possible bug is gone; review the PR and use the CI results before merging.
