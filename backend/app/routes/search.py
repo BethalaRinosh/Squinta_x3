@@ -165,16 +165,17 @@ async def search(
         matching_ids = collect_ids(ix, parsed_query)
 
     if not matching_ids and len(query_text) <= 3:
-        # Permit short words/acronyms (e.g. OCR, AI, F1) to match as substrings.
+        # Permit short words/acronyms (e.g. OCR, AI, F1) to match within a
+        # token. Wildcard queries operate on indexed terms, not full stored text.
         with ix.searcher() as searcher:
-            hits = searcher.search(
+            term_hits = searcher.search(
                 whoosh_query.And([
                     whoosh_query.Term("user_id", str(current_user.id)),
                     whoosh_query.Wildcard("text", f"*{query_text.lower()}*"),
                 ]),
                 limit=limit,
             )
-            matching_ids = [int(hit["ocr_result_id"]) for hit in hits]
+            matching_ids = [int(hit["ocr_result_id"]) for hit in term_hits]
 
     if not matching_ids:
         return SearchResponse(query=query_text, total=0, results=[])
