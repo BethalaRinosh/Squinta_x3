@@ -129,22 +129,30 @@ export default function DocumentView() {
   // responses, and rendering an object directly leaks strings like "[object Object]"
   // or JSON-shaped content into the OCR panel. Always pass normalized text rows
   // to the presentation components.
-  const resultsPayload = Array.isArray(ocrResults)
-    ? ocrResults
-    : Array.isArray(ocrResults?.results)
-      ? ocrResults.results
-      : Array.isArray(ocrResults?.items)
-        ? ocrResults.items
-        : Array.isArray(ocrResults?.data)
-          ? ocrResults.data
-          : Array.isArray(ocrResults?.text)
-            ? ocrResults.text
-            : ocrResults && typeof ocrResults === 'object'
-              && (typeof ocrResults.text === 'string'
-                || typeof ocrResults.transcription === 'string'
-                || typeof ocrResults.content === 'string')
-              ? [ocrResults]
-              : [];
+  const unwrapResults = (payload) => {
+    if (Array.isArray(payload)) return payload;
+    if (!payload || typeof payload !== 'object') return [];
+
+    // Some development proxies/providers wrap their payload in an axios-like
+    // data field or a FastAPI detail wrapper. Unwrap only known response keys.
+    for (const key of ['results', 'items', 'data', 'detections', 'output']) {
+      if (Array.isArray(payload[key])) return payload[key];
+      if (payload[key] && typeof payload[key] === 'object') {
+        const nested = unwrapResults(payload[key]);
+        if (nested.length) return nested;
+      }
+    }
+
+    if (Array.isArray(payload.text)) return payload.text;
+    if (typeof payload.text === 'string'
+      || typeof payload.transcription === 'string'
+      || typeof payload.content === 'string'
+      || typeof payload.value === 'string') {
+      return [payload];
+    }
+    return [];
+  };
+  const resultsPayload = unwrapResults(ocrResults);
   const results = resultsPayload
     .map((result, index) => {
       if (typeof result === 'string') {
