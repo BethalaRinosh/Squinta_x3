@@ -264,15 +264,19 @@ code,
     box-shadow: none;
   }
 
+  /* Keep the original page layout faithful: render long OCR lines legibly
+     without forcing them into a narrow phone-sized box. */
   .structured-ocr-text-item {
     overflow: visible;
   }
 
   .structured-ocr-text {
     padding: 0;
-    white-space: normal;
-    overflow-wrap: anywhere;
+    white-space: nowrap;
+    max-width: none;
+    overflow: visible;
     line-height: 1.15;
+    font-size: clamp(10px, 2.8vw, 15px) !important;
   }
 
   .document-view-page .grid {
