@@ -503,7 +503,7 @@ export default function DocumentView() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="document-header-actions flex items-center gap-2 shrink-0">
           <Link
             to={`/play?document=${id}`}
             className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors"
@@ -543,7 +543,7 @@ export default function DocumentView() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="document-workspace grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Page thumbnails sidebar */}
         {pages.length > 1 && (
           <div className="lg:col-span-1">
@@ -572,7 +572,7 @@ export default function DocumentView() {
         )}
 
         {/* Main page viewer */}
-        <div className={pages.length > 1 ? 'lg:col-span-7' : 'lg:col-span-8'}>
+        <div className={'document-page-column min-w-0 ' + (pages.length > 1 ? 'lg:col-span-7' : 'lg:col-span-8')}>
           {currentPage ? (
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               {/* Page navigation */}
