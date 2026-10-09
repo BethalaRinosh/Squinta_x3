@@ -487,7 +487,7 @@ export default function DocumentView() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6">
+    <div className="document-view-page max-w-6xl mx-auto px-4 py-6">
       {/* Header */}
       <div className="document-view-header flex items-center justify-between mb-4">
         <div className="flex items-center gap-3 min-w-0">
