@@ -96,6 +96,24 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+
+@app.middleware("http")
+async def strip_api_compatibility_prefix(request, call_next):
+    """Accept the frontend's /api/* URLs in the single-container Docker build.
+
+    Vite already strips /api in development; this keeps the same client URLs
+    working when FastAPI serves the built SPA directly in production.
+    """
+    scope = request.scope
+    path = scope.get("path", "")
+    if path == "/api" or path.startswith("/api/"):
+        scope["path"] = path[4:] or "/"
+        raw_path = scope.get("raw_path")
+        if raw_path and (raw_path == b"/api" or raw_path.startswith(b"/api/")):
+            scope["raw_path"] = raw_path[4:] or b"/"
+    return await call_next(request)
+
 # ── Middleware ─────────────────────────────────────────────────────────────────
 
 # Session middleware is required by authlib's Starlette integration for the
