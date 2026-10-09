@@ -9,9 +9,9 @@ Squinta opens directly to the dashboard with a browser-scoped guest session. Goo
 ## Features
 
 - **Dual OCR Engine** -- Gemini 2.5 Flash API (primary, high-quality) with TrOCR local fallback
-- **Auto-rotation** -- Detects and corrects image orientation (Gemini: single-prompt detection; TrOCR: tries all 4 orientations)
-- **Perspective Warp** -- Detects notebook page corners in camera photos and applies perspective transform to remove desk/background, producing a clean rectangular page image
-- **Deskew** -- Straightens small text skew via Hough line detection so bounding boxes align with horizontal text
+- **Orientation handling** -- Gemini reads the uploaded image without automatic rotation by default; the optional TrOCR fallback can try all 4 orientations
+- **Perspective Warp** -- Optional Gemini page-corner detection and perspective correction, disabled by default to avoid distorting handwriting
+- **Deskew** -- Optional Hough-line deskewing, disabled for Gemini OCR by default
 - **Ink-Aware Bbox Alignment** -- Detects actual ink line positions using Otsu binarization + horizontal projection, then snaps Gemini's bounding boxes to real text positions (corrects spacing drift on long pages)
 - **Auto-crop** -- Detects content bounds to focus OCR on the writing area
 - **Custom Bounding Boxes** -- Draw boxes on the page to OCR specific regions
@@ -163,7 +163,7 @@ handwriting-ocr/
 ### Data Flow
 
 1. **Upload** -- Images saved to `data/uploads/user_{id}/`, Document + Page rows created
-2. **Pre-process** -- Auto-rotation detects orientation and bakes into the image file. Perspective warp detects notebook page corners and removes background. Deskew straightens small text skew.
+2. **Pre-process** -- The original uploaded image is kept unchanged by default for Gemini OCR. Optional rotation, perspective warp, and deskew transforms can be enabled explicitly for controlled tests.
 3. **OCR** -- Gemini (or TrOCR) transcribes the page, returning text with bounding boxes. Ink line detection snaps bounding boxes to actual text positions.
 4. **Correct** -- Play mode surfaces lowest-confidence results first, user approves or corrects
 5. **Train** -- Corrections crop original images to bounding boxes, LoRA fine-tunes TrOCR decoder attention layers (q_proj, v_proj), new adapter version saved
@@ -207,8 +207,8 @@ Camera Photo
 
 **Gemini Flash** (when `GEMINI_API_KEY` is set):
 - Sends the full page image to the configured Gemini Flash model (default `gemini-3.5-flash-lite`) for transcription with bounding boxes
-- Auto-rotation via single-prompt orientation detection (0/90/180/270)
-- Perspective warp uses Gemini to detect page corners, with 2% outward padding to avoid trimming content
+- The original uploaded image is passed to Gemini by default; automatic rotation is opt-in through `GEMINI_AUTO_ROTATE=true`
+- Perspective warp is opt-in through `GEMINI_PAGE_WARP=true`; deskew is opt-in through `GEMINI_DESKEW=true`
 - Bounding box alignment corrects Gemini's uniform y-spacing grid (which drifts from actual ruled-line spacing on notebook pages) by detecting real ink positions via Otsu binarization + horizontal projection
 - Gemini requests use an explicit API key, a bounded client timeout, and automatic retry for transient failures. The API key is never taken from Google OAuth credentials.
 
