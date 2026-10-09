@@ -29,13 +29,13 @@ def _normalize_image_path(image_path: str | None) -> str | None:
 
 
 def _can_start_ocr(status: str | None) -> bool:
-    """Return True only when a page is eligible for a new OCR run.
+    """Return True when no OCR worker is currently processing the page.
 
-    Pages already processing or completed are left alone by default. Explicit
-    reprocessing must first clear the prior state/results and transition the
-    page back to idle before it is queued.
+    The explicit process endpoint clears prior OCR/visual results before a
+    fresh run, so completed pages may be reprocessed. In-flight work is the
+    one state that must never be enqueued a second time.
     """
-    return status in (None, "idle", "error")
+    return status != "processing"
 
 
 # ── OCR engine stub ──────────────────────────────────────────────────────────
