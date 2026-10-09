@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getDocument, processDocument, processPage, getResults,
@@ -14,6 +14,7 @@ import StructuredOcrView from '../components/StructuredOcrView';
 export default function DocumentView() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const toast = useToast();
   const queryClient = useQueryClient();
   const [selectedPageIndex, setSelectedPageIndex] = useState(0);
@@ -55,6 +56,23 @@ export default function DocumentView() {
   });
 
   const pages = doc?.pages || [];
+  const requestedPageIndex = Number.parseInt(searchParams.get('page') ?? '', 10);
+
+  useEffect(() => {
+    if (!pages.length || !Number.isInteger(requestedPageIndex)) return;
+    if (requestedPageIndex < 0 || requestedPageIndex >= pages.length) return;
+    if (requestedPageIndex !== selectedPageIndex) {
+      setSelectedPageIndex(requestedPageIndex);
+    }
+  }, [pages.length, requestedPageIndex, selectedPageIndex]);
+
+  const selectPage = useCallback((index) => {
+    setSelectedPageIndex(index);
+    const next = new URLSearchParams(searchParams);
+    next.set('page', String(index));
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
   const currentPage = pages[selectedPageIndex];
   const currentPageId = currentPage?.id;
 
@@ -397,11 +415,11 @@ export default function DocumentView() {
   }, []);
 
   const goToPrevPage = () => {
-    if (selectedPageIndex > 0) setSelectedPageIndex(selectedPageIndex - 1);
+    if (selectedPageIndex > 0) selectPage(selectedPageIndex - 1);
   };
 
   const goToNextPage = () => {
-    if (selectedPageIndex < pages.length - 1) setSelectedPageIndex(selectedPageIndex + 1);
+    if (selectedPageIndex < pages.length - 1) selectPage(selectedPageIndex + 1);
   };
 
   const activeDrawMode = drawMode || cropMode || trainMode;
@@ -519,7 +537,7 @@ export default function DocumentView() {
               {pages.map((page, index) => (
                 <button
                   key={page.id || index}
-                  onClick={() => setSelectedPageIndex(index)}
+                  onClick={() => selectPage(index)}
                   className={`shrink-0 w-14 h-18 rounded-lg border-2 overflow-hidden transition-all ${
                     index === selectedPageIndex
                       ? 'border-primary-500 shadow-md'
