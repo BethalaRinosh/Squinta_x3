@@ -413,3 +413,11 @@ The detection is intentionally conservative: it uses explicit naming phrases and
 - Successful translations are cached to avoid duplicate requests for the same text and language pair.
 - If the unofficial Google Translate endpoint rate-limits a request, Squinta falls back to the configured Gemini model when `GEMINI_API_KEY` is available.
 - Without a Gemini API key, the UI receives a clear temporary rate-limit message instead of a long raw provider error. Restart the backend after pulling this change.
+
+
+### OCR confidence scoring correction
+
+- Fixed a Gemini structured-page OCR path that assigned every recognized line a hard-coded `95%`, bypassing the confidence estimator.
+- The displayed percentage is now a **heuristic reliability score**, based on the model prior, transcription length, visible ink in the OCR crop, expected ink support, and explicit uncertainty markers.
+- Blank or nearly blank crops are capped at a low score. This score is not a statistically calibrated probability that every character is correct; calibration against a labeled test set is required before interpreting it as exact accuracy.
+- Re-process existing pages to replace previously stored confidence values. Run `pytest backend/tests/test_ocr_confidence.py` from the repository root to test the scoring behavior.
