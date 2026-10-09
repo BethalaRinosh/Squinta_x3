@@ -148,13 +148,12 @@ async def search(
             )
             return [int(hit["ocr_result_id"]) for hit in hits]
 
+    # Always re-sync this user's index from the database before searching.
+    # Corrections and legacy documents may predate the current index; rebuilding
+    # keeps Whoosh a disposable cache rather than the source of truth.
+    await rebuild_index_for_user(current_user.id, db)
+    ix = get_search_index()
     matching_ids = collect_ids(ix)
-    if not matching_ids:
-        # Indexes can be empty after deployment, moved working directories, or
-        # a failed best-effort indexing call. Database rows are the source of truth.
-        await rebuild_index_for_user(current_user.id, db)
-        ix = get_search_index()
-        matching_ids = collect_ids(ix)
 
     if not matching_ids:
         return SearchResponse(query=query_text, total=0, results=[])
