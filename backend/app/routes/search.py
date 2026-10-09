@@ -136,8 +136,11 @@ async def search(
     parser = MultifieldParser(["text"], schema=ix.schema, group=OrGroup)
 
     def parse_query(index: whoosh_index.Index, value: str):
+        # Bind the parser to the opened index's schema. The on-disk index is
+        # opened before query parsing, including after a rebuild.
+        active_parser = MultifieldParser(["text"], schema=index.schema, group=OrGroup)
         try:
-            return parser.parse(value)
+            return active_parser.parse(value)
         except Exception as exc:
             raise HTTPException(status_code=400, detail="Invalid search query") from exc
 
