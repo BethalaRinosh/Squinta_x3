@@ -134,12 +134,14 @@ async def search(
 
     ix = get_search_index()
     parser = MultifieldParser(["text"], schema=ix.schema, group=OrGroup)
-    try:
-        parsed_query = parser.parse(query_text)
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail="Invalid search query") from exc
 
-    def collect_ids(index: whoosh_index.Index) -> list[int]:
+    def parse_query(index: whoosh_index.Index, value: str):
+        try:
+            return parser.parse(value)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail="Invalid search query") from exc
+
+    def collect_ids(index: whoosh_index.Index, parsed_query) -> list[int]:
         with index.searcher() as searcher:
             hits = searcher.search(
                 parsed_query,
@@ -151,11 +153,25 @@ async def search(
     # Avoid rebuilding on every keystroke. If this query has no indexed match,
     # rebuild this user's index from the database and retry. This repairs empty
     # or stale indexes without making ordinary searches perform a full DB scan.
-    matching_ids = collect_ids(ix)
+    parsed_query = parse_query(ix, query_text)
+    matching_ids = collect_ids(ix, parsed_query)
     if not matching_ids:
         await rebuild_index_for_user(current_user.id, db)
         ix = get_search_index()
-        matching_ids = collect_ids(ix)
+        parsed_query = parse_query(ix, query_text)
+        matching_ids = collect_ids(ix, parsed_query)
+
+    if not matching_ids and len(query_text) <= 3:
+        # Permit short words/acronyms (e.g. OCR, AI, F1) to match as substrings.
+        with ix.searcher() as searcher:
+            hits = searcher.search(
+                whoosh_query.And([
+                    whoosh_query.Term("user_id", str(current_user.id)),
+                    whoosh_query.Wildcard("text", f"*{query_text.lower()}*"),
+                ]),
+                limit=limit,
+            )
+            matching_ids = [int(hit["ocr_result_id"]) for hit in hits]
 
     if not matching_ids:
         return SearchResponse(query=query_text, total=0, results=[])
