@@ -29,7 +29,7 @@ jobs:
           SECRET_KEY: ci-only-not-for-production
           GEMINI_API_KEY: ''
           OPENAI_API_KEY: ''
-        run: PYTHONPATH=. pytest -q
+        run: python -m pytest -q
 
   frontend-build:
     runs-on: ubuntu-latest
