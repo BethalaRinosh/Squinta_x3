@@ -423,3 +423,11 @@ The detection is intentionally conservative: it uses explicit naming phrases and
 - Successful translations are cached to avoid duplicate requests for the same text and language pair.
 - If the unofficial Google Translate endpoint rate-limits a request, Squinta falls back to the configured Gemini model when `GEMINI_API_KEY` is available.
 - Without a Gemini API key, the UI receives a clear temporary rate-limit message instead of a long raw provider error. Restart the backend after pulling this change.
+
+## Mobile viewing and OCR output
+
+- The document page and OCR results panel adapt to narrow screens, with the OCR panel returning to normal page flow on phones rather than staying sticky.
+- OCR response handling normalizes supported list/wrapper forms and extracts known text fields only, avoiding accidental rendering of raw response objects such as `{text: ...}`.
+- For phone testing through a VS Code forwarded port, forward both the Vite frontend port (`5176`) and backend port (`8000`) if the browser needs to access the backend directly. Configure `VITE_BACKEND_URL` to a backend URL reachable from the phone when using a separate backend origin. A desktop-only `localhost` address on the phone points to the phone itself, not the development PC.
+- Verify a fresh build with `cd frontend && npm run build`, then hard-refresh the forwarded URL on the phone after Vite restarts.
+
