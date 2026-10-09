@@ -20,7 +20,7 @@ from app.schemas import DocumentListItem, DocumentOut, MessageResponse, PageOut
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
-ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tiff", ".tif", ".bmp", ".webp", ".gif", ".pdf", ".heic", ".heif"}
+ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tiff", ".tif", ".bmp", ".webp", ".gif", ".heic", ".heif"}
 
 
 def _user_upload_dir(user_id: int) -> str:
