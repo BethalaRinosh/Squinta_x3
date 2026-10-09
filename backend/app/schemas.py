@@ -165,8 +165,8 @@ class SearchResult(BaseModel):
     ocr_result_id: int
     page_id: int
     page_image_path: str
-    page_number: int
     document_id: int
+    page_number: int
     document_name: str
     text: str
     confidence: float
