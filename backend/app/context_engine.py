@@ -220,25 +220,19 @@ def get_profile(domain: str) -> DomainProfile | None:
 
 
 def select_vocabulary(text: str, domain: str, limit: int = 24) -> list[str]:
-    """Return relevant domain terms already hinted at by the OCR candidate."""
+    """Return domain terms supported by whole-word/phrase clues in the candidate."""
     profile = get_profile(domain)
-    if profile is None:
+    if profile is None or not text:
         return []
 
-    normalised = _normalise(text)
-    tokens = _tokenise(text)
     scored: list[tuple[int, str]] = []
-
     for term in profile.vocabulary:
-        nt = _normalise(term)
-        overlap = len(_tokenise(term) & tokens)
-        substring = int(nt in normalised)
-        if overlap or substring:
-            scored.append((overlap * 2 + substring, term))
+        if _contains_term(text, term):
+            specificity = 2 if len(_normalise(term).split()) > 1 else 1
+            scored.append((specificity, term))
 
     scored.sort(key=lambda item: (-item[0], len(item[1])))
-    return [term for _, term in scored[:limit]]
-
+    return [term for _, term in scored[:max(0, limit)]]
 
 def build_context(text: str, forced_domain: str | None = None) -> dict:
     """Build a compact context payload with evidence and ambiguity diagnostics."""
