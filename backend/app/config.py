@@ -57,8 +57,11 @@ class Settings(BaseSettings):
     # and the operator has explicitly opted in to a potentially large model download.
     ENABLE_TROCR_FALLBACK: bool = False
 
-    # Enable domain-aware OCR verification.
-    ENABLE_CONTEXT_ENGINE: bool = True
+    # Optional second vision pass that can reinterpret the first OCR transcript.
+    # It is disabled by default because contextual guesses can replace correct
+    # handwritten words with plausible but visually unsupported text.
+    # Enable explicitly with ENABLE_CONTEXT_ENGINE=true for controlled testing.
+    ENABLE_CONTEXT_ENGINE: bool = False
 
     # JWT config
     JWT_ALGORITHM: str = "HS256"
