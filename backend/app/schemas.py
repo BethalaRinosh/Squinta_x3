@@ -164,7 +164,9 @@ class CorrectionOut(BaseModel):
 class SearchResult(BaseModel):
     ocr_result_id: int
     page_id: int
+    page_number: int
     page_image_path: str
+    thumbnail_url: str = ""
     document_id: int
     document_name: str
     text: str
@@ -173,6 +175,38 @@ class SearchResult(BaseModel):
     bbox_y: int
     bbox_w: int
     bbox_h: int
+
+    @property
+    def id(self) -> int:
+        return self.ocr_result_id
+
+    def model_post_init(self, __context) -> None:
+        """Expose a browser URL without leaking the server's filesystem path."""
+        if self.thumbnail_url:
+            return
+
+        from pathlib import Path
+        from app.config import settings
+
+        try:
+            relative = Path(self.page_image_path).resolve().relative_to(
+                Path(settings.UPLOAD_DIR).resolve()
+            )
+            self.thumbnail_url = "/api/uploads/" + relative.as_posix()
+            return
+        except (ValueError, OSError):
+            pass
+
+        path = str(self.page_image_path or "").replace("\\\\", "/")
+        if "/uploads/" in path:
+            path = path.split("/uploads/", 1)[1].lstrip("/")
+        elif path.startswith("data/uploads/"):
+            path = path[len("data/uploads/"):]
+        elif path.startswith("./data/uploads/"):
+            path = path[len("./data/uploads/"):]
+        else:
+            return
+        self.thumbnail_url = "/api/uploads/" + path
 
 
 class SearchResponse(BaseModel):

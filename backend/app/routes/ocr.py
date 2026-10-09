@@ -28,14 +28,18 @@ def _normalize_image_path(image_path: str | None) -> str | None:
     return normalized
 
 
-def _can_start_ocr(status: str | None) -> bool:
-    """Return True when a page is not already being processed.
+def _can_start_ocr(status: str | None, *, allow_reprocess: bool = False) -> bool:
+    """Check whether an OCR request may be queued for this page.
 
-    Explicit OCR processing requests are also allowed for completed pages so
-    changes to the OCR pipeline can replace stale persisted results. The route
-    clears old results before queuing the new run.
+    A completed page is blocked by default. Endpoints that explicitly clear
+    prior OCR/visual results may opt into reprocessing. In-flight processing
+    is always blocked to prevent duplicate workers.
     """
-    return status != "processing"
+    if status == "processing":
+        return False
+    if status == "done":
+        return allow_reprocess
+    return status in (None, "idle", "error")
 
 
 # ── OCR engine stub ──────────────────────────────────────────────────────────
@@ -542,7 +546,7 @@ async def process_page(
     """
     page = await _verify_page_ownership(page_id, current_user.id, db)
 
-    if not _can_start_ocr(page.processing_status):
+    if not _can_start_ocr(page.processing_status, allow_reprocess=True):
         return MessageResponse(message=f"Page {page.id} is already being processed or completed")
 
     # Clear any previous OCR results for this page so we get a fresh run.
@@ -717,7 +721,7 @@ async def process_document(
         )
 
     for page in document.pages:
-        if not _can_start_ocr(page.processing_status):
+        if not _can_start_ocr(page.processing_status, allow_reprocess=True):
             continue
 
         # Clear old results.

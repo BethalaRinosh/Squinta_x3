@@ -2,7 +2,8 @@ from app.routes.ocr import _can_start_ocr
 
 
 def test_completed_page_can_be_explicitly_reprocessed():
-    assert _can_start_ocr("done") is True
+    assert _can_start_ocr("done", allow_reprocess=True) is True
+    assert _can_start_ocr("done") is False
 
 
 def test_processing_page_cannot_be_queued_twice():

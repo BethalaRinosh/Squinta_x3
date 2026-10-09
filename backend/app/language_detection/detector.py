@@ -367,14 +367,34 @@ def identify_language_and_translate_to_english(text: str | None) -> dict[str, ob
             "translation_applied": False,
         }
 
-    detection = detect_language(str(text))
+    original_text = str(text).strip()
+    detection = detect_language(original_text)
+    translated_text = original_text
+    translation_applied = False
+
+    # Preserve the lightweight detector as the source of language metadata,
+    # but actually invoke the translation helper when it identifies a
+    # translatable, non-English script. The helper remains provider-tolerant.
+    if detection.language not in {"unknown", "mixed", "numeric", "en"}:
+        try:
+            candidate = translate_text_to_english(
+                original_text, detection.language, "en"
+            )
+            if candidate and candidate.strip() and candidate.strip() != original_text:
+                translated_text = candidate.strip()
+                translation_applied = True
+        except Exception:
+            # OCR text and its language annotation remain useful if translation
+            # providers are unavailable; don't fail the whole OCR request.
+            pass
+
     return {
         "language": detection.language,
         "language_name": detection.language_name,
         "script": detection.script,
         "confidence": detection.confidence,
-        "translated_text": str(text).strip(),
-        "translation_applied": False,
+        "translated_text": translated_text,
+        "translation_applied": translation_applied,
     }
 
 

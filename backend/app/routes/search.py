@@ -1,15 +1,14 @@
 """Full-text search across OCR results using Whoosh."""
 
 import os
-import shutil
-from typing import Optional
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from whoosh import index as whoosh_index
 from whoosh.analysis import StemmingAnalyzer
-from whoosh.fields import ID, NUMERIC, TEXT, Schema
+from whoosh.fields import ID, TEXT, Schema
 from whoosh.qparser import MultifieldParser, OrGroup
 
 from app.auth import get_current_user
@@ -21,7 +20,7 @@ router = APIRouter(prefix="/search", tags=["search"])
 
 # ── Whoosh schema & index management ─────────────────────────────────────────
 
-WHOOSH_DIR = os.path.join("data", "whoosh_index")
+WHOOSH_DIR = str(Path(__file__).resolve().parents[3] / "data" / "whoosh_index")
 
 _schema = Schema(
     ocr_result_id=ID(stored=True, unique=True),
@@ -125,31 +124,33 @@ async def search(
     """
     ix = get_search_index()
     parser = MultifieldParser(["text"], schema=ix.schema, group=OrGroup)
-    query = parser.parse(q)
+    try:
+        query = parser.parse(q.strip())
+    except Exception:
+        # Malformed Whoosh syntax should not turn a user query into a server error.
+        return SearchResponse(query=q, total=0, results=[])
 
     matching_ids: list[int] = []
 
     with ix.searcher() as searcher:
+        # Apply user isolation inside Whoosh, before limiting results. Filtering
+        # after a global top-N can silently drop a user's matches in shared indexes.
+        from whoosh.query import Term
         results = searcher.search(
             query,
-            filter=whoosh_index.query.Term("user_id", str(current_user.id))
-            if hasattr(whoosh_index, "query")
-            else None,
-            limit=limit * 3,  # over-fetch since we filter by user below
+            filter=Term("user_id", str(current_user.id)),
+            limit=limit,
         )
 
         for hit in results:
-            if hit["user_id"] == str(current_user.id):
-                matching_ids.append(int(hit["ocr_result_id"]))
-                if len(matching_ids) >= limit:
-                    break
+            matching_ids.append(int(hit["ocr_result_id"]))
 
     if not matching_ids:
         return SearchResponse(query=q, total=0, results=[])
 
     # Hydrate from the database to get full info.
     stmt = (
-        select(OcrResult, Page.image_path, Document.id.label("doc_id"), Document.name.label("doc_name"))
+        select(OcrResult, Page.image_path, Page.page_number, Document.id.label("doc_id"), Document.name.label("doc_name"))
         .join(Page, OcrResult.page_id == Page.id)
         .join(Document, Page.document_id == Document.id)
         .where(
@@ -168,6 +169,7 @@ async def search(
         SearchResult(
             ocr_result_id=ocr.id,
             page_id=ocr.page_id,
+            page_number=page_number,
             page_image_path=image_path,
             document_id=doc_id,
             document_name=doc_name,
@@ -178,7 +180,7 @@ async def search(
             bbox_w=ocr.bbox_w,
             bbox_h=ocr.bbox_h,
         )
-        for ocr, image_path, doc_id, doc_name in rows_sorted
+        for ocr, image_path, page_number, doc_id, doc_name in rows_sorted
     ]
 
     return SearchResponse(query=q, total=len(search_results), results=search_results)

@@ -30,7 +30,7 @@ class DomainProfile:
 DOMAIN_PROFILES: tuple[DomainProfile, ...] = (
     DomainProfile(
         name="medical",
-        aliases=("medical", "medicine", "clinical", "doctor", "hospital", "prescription", "patient"),
+        aliases=("medical", "medicine", "clinical", "doctor", "hospital", "prescription"),
         vocabulary=(
             "diagnosis", "symptom", "patient", "history", "examination", "assessment",
             "treatment", "prescription", "medication", "dose", "dosage", "tablet",
