@@ -164,6 +164,7 @@ class CorrectionOut(BaseModel):
 class SearchResult(BaseModel):
     ocr_result_id: int
     page_id: int
+    page_number: int
     page_image_path: str
     thumbnail_url: str = ""
     document_id: int
