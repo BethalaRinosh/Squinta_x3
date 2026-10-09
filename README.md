@@ -25,7 +25,7 @@ Squinta opens directly to the dashboard with a browser-scoped guest session. Goo
 - **AI Summary** -- Generate a concise Gemini summary of the current page's OCR text without sending the image through another vision pass, with one-click read-aloud playback using the existing browser speech synthesis
 - **Strike-off detection** -- Detects text crossed out by a strong horizontal stroke. In Document View, **Remove strike-offs** hides detected struck-through text; when disabled, it remains visible with a strike-through.
 - **Model Export** -- Download your personalized LoRA weights
-- **Domain Context Engine** -- Detects likely medical, legal, finance, science, or education context from OCR candidates and runs a constrained Gemini verification pass using domain terminology, without inventing unsupported text.
+- **Optional Domain Context Engine** -- Can run a second Gemini vision pass using medical, legal, finance, science, or education terminology. It is disabled by default so the second pass cannot overwrite a good first-pass transcription unless explicitly enabled.
 - **Context-aware translation** -- Uses explicit naming context (for example, “My company's name is FISH”) to protect company, brand, and product names across translation providers, while allowing ordinary words such as “fish” to translate normally when they are not identified as names.
 ## Quick Start
 
@@ -90,9 +90,9 @@ docker compose up --build
 
 ### Domain-aware OCR context
 
-The context engine runs after the first Gemini handwriting pass. It detects a likely domain from the candidate transcription, injects a compact terminology/context profile, and asks Gemini to verify ambiguous readings against the original image. The context layer is advisory only: it cannot create text that is not visually supported. Medical context includes common clinical terms, drugs, measurements, abbreviations, and units. The engine also has legal, finance, science, and education profiles and can be extended with larger ontologies such as UMLS/MeSH/RxNorm through `backend/app/context_engine.py`.
+The context engine is an optional second Gemini vision pass. It detects a likely domain from the initial transcription, adds relevant terminology, and asks Gemini to review ambiguous readings against the same image. A second pass can still replace correct words with plausible but incorrect guesses, so this refinement is **disabled by default** and the first OCR pass remains authoritative during normal use. Medical context includes common clinical terms, drugs, measurements, abbreviations, and units; other profiles cover legal, finance, science, and education. The engine can be extended with larger ontologies such as UMLS/MeSH/RxNorm through `backend/app/context_engine.py`.
 
-Set `ENABLE_CONTEXT_ENGINE=false` to disable the second-pass refinement.
+To try the second pass in a controlled test, set `ENABLE_CONTEXT_ENGINE=true` in the environment or `.env` and restart the backend. For normal OCR, leave it unset or set it to `false`.
 
 - **Summary speech playback** -- AI summaries can now be read aloud directly from the summary card, with the existing speech-rate controls and stop/play behavior shared by OCR text-to-speech.
 
