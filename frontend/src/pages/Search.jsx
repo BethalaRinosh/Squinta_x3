@@ -20,9 +20,12 @@ function highlightMatch(text, query) {
 }
 
 function SearchResultCard({ result, query }) {
+  const pageNumber = Number(result.page_number ?? result.page_index ?? 1);
+  const targetPageIndex = Math.max(0, pageNumber - 1);
+
   return (
     <Link
-      to={`/documents/${result.document_id}?page=${Math.max(0, Number(result.page_index ?? result.page_number ?? 1) - 1)}`}
+      to={`/documents/${result.document_id}?page=${targetPageIndex}`}
       className="block bg-white rounded-xl border border-gray-200 hover:border-primary-300 hover:shadow-md transition-all p-4"
     >
       <div className="flex gap-4">
@@ -44,11 +47,7 @@ function SearchResultCard({ result, query }) {
             <span className="text-xs font-medium text-gray-500 truncate">
               {result.document_name || result.document_title || 'Document'}
             </span>
-            {(result.page_index !== undefined || result.page_number !== undefined) && (
-              <span className="text-xs text-gray-400">
-                Page {result.page_number ?? result.page_index ?? result.page_id}
-              </span>
-            )}
+            <span className="text-xs text-gray-400">Page {Number.isFinite(pageNumber) ? pageNumber : 1}</span>
             {result.confidence !== undefined && (
               <ConfidenceBadge confidence={result.confidence} />
             )}
