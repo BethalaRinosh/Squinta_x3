@@ -761,8 +761,8 @@ export default function DocumentView() {
         </div>
 
         {/* OCR results panel */}
-        <div className="lg:col-span-4">
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden sticky top-20">
+        <div className="ocr-results-column min-w-0 lg:col-span-4">
+          <div className="ocr-results-card bg-white rounded-xl border border-gray-200 overflow-hidden sticky top-20">
             <div className="px-4 py-3 border-b border-gray-100">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-sm font-semibold text-gray-700 shrink-0">OCR Results</h2>
