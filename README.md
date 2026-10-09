@@ -86,9 +86,9 @@ docker compose up --build
 
 ### Domain-aware OCR context
 
-The context engine runs after the first Gemini handwriting pass. It detects a likely domain from the candidate transcription, injects a compact terminology/context profile, and asks Gemini to verify ambiguous readings against the original image. The context layer is advisory only: it cannot create text that is not visually supported. Medical context includes common clinical terms, drugs, measurements, abbreviations, and units. The engine also has legal, finance, science, and education profiles and can be extended with larger ontologies such as UMLS/MeSH/RxNorm through `backend/app/context_engine.py`.
+The context engine runs after the first Gemini handwriting pass. It uses whole-word and phrase matching, weighted domain clues, evidence breadth, and a runner-up-domain separation check to avoid treating incidental substrings or one weak clue as a specialist domain. The context payload includes the detected domain, confidence, observed clues, relevant vocabulary, and competing-domain evidence. Gemini then verifies ambiguous readings against the original image using that evidence. The context layer is advisory only: the image remains the source of truth, and the prompt explicitly forbids inventing or normalizing words, drug names, doses, dates, names, and numbers. Built-in profiles cover medical, legal, finance, science, and education. The engine remains dependency-light and can be extended with a domain ontology later.
 
-Set `ENABLE_CONTEXT_ENGINE=false` to disable the second-pass refinement.
+Set `ENABLE_CONTEXT_ENGINE=false` to disable the second-pass refinement. Run `pytest backend/tests/test_context_engine.py` from the repository root to test domain scoring, weak/ambiguous evidence, word-boundary matching, forced-domain behavior, and safety constraints in the refinement prompt.
 
 - **Summary speech playback** -- AI summaries can now be read aloud directly from the summary card, with the existing speech-rate controls and stop/play behavior shared by OCR text-to-speech.
 
