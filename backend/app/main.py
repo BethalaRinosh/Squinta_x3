@@ -97,6 +97,12 @@ app = FastAPI(
 )
 
 
+# Anchor runtime-created directories to the project root regardless of launch cwd.
+os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+os.makedirs(settings.MODEL_DIR, exist_ok=True)
+os.makedirs(Path(__file__).resolve().parents[2] / "data", exist_ok=True)
+
+
 @app.middleware("http")
 async def strip_api_compatibility_prefix(request, call_next):
     """Accept the frontend's /api/* URLs in the single-container Docker build.
@@ -107,7 +113,8 @@ async def strip_api_compatibility_prefix(request, call_next):
     scope = request.scope
     path = scope.get("path", "")
     if path == "/api" or path.startswith("/api/"):
-        scope["path"] = path[4:] or "/"
+        stripped_path = path[4:] or "/"
+        scope["path"] = stripped_path
         raw_path = scope.get("raw_path")
         if raw_path and (raw_path == b"/api" or raw_path.startswith(b"/api/")):
             scope["raw_path"] = raw_path[4:] or b"/"
@@ -153,7 +160,6 @@ app.include_router(model_router)
 # ── Static files ──────────────────────────────────────────────────────────────
 # Serve uploaded images so the frontend can display them directly.
 
-os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
 # ── Health check ──────────────────────────────────────────────────────────────
