@@ -125,7 +125,39 @@ export default function DocumentView() {
     refetchInterval: isProcessing ? 3000 : false,
   });
 
-  const results = Array.isArray(ocrResults) ? ocrResults : ocrResults?.results || [];
+  // Be defensive about API payloads: mobile tunneled setups can expose wrapped
+  // responses, and rendering an object directly leaks strings like "[object Object]"
+  // or JSON-shaped content into the OCR panel. Always pass normalized text rows
+  // to the presentation components.
+  const resultsPayload = Array.isArray(ocrResults)
+    ? ocrResults
+    : Array.isArray(ocrResults?.results)
+      ? ocrResults.results
+      : Array.isArray(ocrResults?.items)
+        ? ocrResults.items
+        : Array.isArray(ocrResults?.data)
+          ? ocrResults.data
+          : ocrResults && typeof ocrResults === 'object' && typeof ocrResults.text === 'string'
+            ? [ocrResults]
+            : [];
+  const results = resultsPayload
+    .map((result, index) => {
+      if (typeof result === 'string') {
+        return { id: `ocr-text-${index}`, text: result, confidence: 0 };
+      }
+      if (!result || typeof result !== 'object') return null;
+
+      // Accept common provider wrappers without ever stringifying the whole object.
+      const textValue = typeof result.text === 'string'
+        ? result.text
+        : typeof result.transcription === 'string'
+          ? result.transcription
+          : typeof result.content === 'string'
+            ? result.content
+            : '';
+      return { ...result, id: result.id ?? `ocr-text-${index}`, text: textValue };
+    })
+    .filter((result) => result && result.text.trim());
 
   useEffect(() => {
     setSelectedResultId(null);
@@ -877,7 +909,7 @@ export default function DocumentView() {
               )}
             </div>
 
-            <div className="max-h-[calc(100vh-16rem)] overflow-y-auto">
+            <div className="ocr-results-scroll max-h-[calc(100vh-16rem)] overflow-y-auto">
               {ocrLoading ? (
                 <div className="p-4 space-y-3">
                   {[1, 2, 3, 4, 5].map((i) => (
