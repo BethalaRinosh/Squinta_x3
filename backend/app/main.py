@@ -97,7 +97,6 @@ app = FastAPI(
 )
 
 
-
 @app.middleware("http")
 async def strip_api_compatibility_prefix(request, call_next):
     """Accept the frontend's /api/* URLs in the single-container Docker build.
