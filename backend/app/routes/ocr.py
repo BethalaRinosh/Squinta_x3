@@ -29,8 +29,13 @@ def _normalize_image_path(image_path: str | None) -> str | None:
 
 
 def _can_start_ocr(status: str | None) -> bool:
-    """Return True when a page is available for a fresh OCR run."""
-    return status not in {"processing", "done"}
+    """Return True when a page is not already being processed.
+
+    Explicit OCR processing requests are also allowed for completed pages so
+    changes to the OCR pipeline can replace stale persisted results. The route
+    clears old results before queuing the new run.
+    """
+    return status != "processing"
 
 
 # ── OCR engine stub ──────────────────────────────────────────────────────────
