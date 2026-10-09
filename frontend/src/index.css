@@ -280,3 +280,30 @@ code,
   }
 }
 
+@media (max-width: 640px) {
+  .document-header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+  }
+
+  .document-workspace {
+    gap: 1rem;
+  }
+
+  .document-page-column,
+  .ocr-results-column {
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* Keep all OCR actions reachable without horizontal scrolling. */
+  .ocr-results-card .flex-wrap {
+    justify-content: flex-start;
+  }
+
+  .ocr-results-card .ocr-results-scroll {
+    max-height: 62vh;
+  }
+}
+
